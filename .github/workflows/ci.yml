@@ -1,0 +1,33 @@
+# Local draft of the CI workflow (plan section 21.2). It has NEVER run: there is no GitHub repository yet and creating one
+# needs the owner's explicit approval (plan rule 21.3.9).
+# Before enabling: pin every action to a commit SHA (plan SEC-54), add the TiDB service container job once gate S-3 confirms
+# an image and single-node mode, and add the security workflow (gitleaks, dependency audit, CodeQL).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec eslint .
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
+      - run: node scripts/build-migration.mjs && git diff --exit-code apps/api/migrations/0001_init.sql
+      - run: node scripts/check-migration.mjs

@@ -1,0 +1,84 @@
+import { z } from 'zod';
+
+/**
+ * Centralised, validated configuration (plan SEC-33). The process refuses to start with missing or malformed
+ * configuration. No other module reads process.env.
+ */
+const bool = z
+  .enum(['true', 'false'])
+  .default('false')
+  .transform((v) => v === 'true');
+
+export const envSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    APP_ENV: z.enum(['local', 'staging', 'production']).default('local'),
+    PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+    WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
+    LOG_LEVEL: z
+      .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
+      .default('info'),
+    /** E0 = free (dev/test/closed alpha), E1/E2 = paid always-on production (plan section 9.14). */
+    HOSTING_TIER: z.enum(['free', 'paid']).default('free'),
+    SCHEDULER_MODE: z.enum(['inprocess', 'external', 'cron']).default('inprocess'),
+    SCHEDULER_INTERVAL_MIN: z.coerce.number().int().min(1).max(1440).default(30),
+    SHUTDOWN_GRACE_SECONDS: z.coerce.number().int().min(1).max(300).default(100),
+    /** Comma-separated; first is current, others are previous (rotation without downtime). */
+    INTERNAL_HMAC_SECRETS: z.string().min(1),
+    AI_PROVIDER: z.enum(['gemini', 'mock']).default('mock'),
+    AI_ENABLE_PAID: bool,
+    AI_ENABLE_FREE: bool,
+    AI_MONTHLY_BUDGET_USD: z.coerce.number().min(0).default(10),
+    EMAIL_PROVIDER: z.enum(['resend', 'ses', 'log']).default('log'),
+    EMAIL_DAILY_CAP: z.coerce.number().int().min(0).default(80),
+    EMAIL_RESERVED_SECURITY_PCT: z.coerce.number().int().min(0).max(100).default(60),
+  })
+  .superRefine((env, ctx) => {
+    // SCH-02: no keep-alive. A free instance must really sleep between ticks.
+    if (env.HOSTING_TIER === 'free' && env.SCHEDULER_INTERVAL_MIN < 30) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SCHEDULER_INTERVAL_MIN'],
+        message:
+          'A tick interval below 30 minutes on a free instance is a keep-alive and is forbidden (SCH-02)',
+      });
+    }
+    if (env.APP_ENV === 'production' && env.HOSTING_TIER === 'free') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['HOSTING_TIER'],
+        message: 'Production must not run on the free hosting tier (plan section 9.14)',
+      });
+    }
+    if (env.APP_ENV === 'production' && env.AI_PROVIDER === 'mock') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['AI_PROVIDER'],
+        message: 'The mock AI provider cannot run in production',
+      });
+    }
+    const secrets = env.INTERNAL_HMAC_SECRETS.split(',').map((s) => s.trim());
+    if (secrets.some((s) => s.length < 32)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['INTERNAL_HMAC_SECRETS'],
+        message: 'Every internal HMAC secret must be at least 32 characters',
+      });
+    }
+  });
+
+export type Config = Omit<z.infer<typeof envSchema>, 'INTERNAL_HMAC_SECRETS'> & {
+  hmacSecrets: string[];
+};
+
+export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
+  const parsed = envSchema.safeParse(env);
+  if (!parsed.success) {
+    const lines = parsed.error.issues.map(
+      (i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`,
+    );
+    throw new Error(`Invalid configuration:\n${lines.join('\n')}`);
+  }
+  const { INTERNAL_HMAC_SECRETS, ...rest } = parsed.data;
+  return { ...rest, hmacSecrets: INTERNAL_HMAC_SECRETS.split(',').map((s) => s.trim()) };
+}

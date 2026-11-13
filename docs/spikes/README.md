@@ -1,0 +1,19 @@
+# Phase 0 validation gates (tracker)
+
+Specifications: `CIRCULAR2ACTION_MASTER_PLAN_v1.1.md` section 26.1. Evidence for each gate goes in `docs/spikes/S-n/`.
+A gate passes only when every acceptance criterion is met; otherwise the recorded fallback needs owner approval.
+
+| Gate | Subject | Status | Needs from the owner |
+|---|---|---|---|
+| S-1 | Bangla/English search quality | not started | none for the local part; external search only if both options fail |
+| S-2 | OCR quality and legacy-font PDFs | not started | corpus collection effort (UQ-8); internal-use position on notices (UQ-4) |
+| S-3 | TiDB compatibility | not started | local TiDB container (Docker) and/or a free Starter instance |
+| S-4 | Gemini extraction pilot | not started | Gemini access; paid budget if the unpaid quota is insufficient (UQ-3) |
+| S-5 | Vercel rewrite to Render | not started | Vercel and Render staging projects |
+| S-6 | Scheduler and job reliability | not started | Render staging (free for E0; paid for E1/E2, UQ-15) |
+| S-7 | Transactional email delivery | not started | domain (UQ-6), provider account (UQ-16) |
+| S-8 | Object storage and upload security | not started | Cloudflare account (UQ-19) |
+| S-9 | Deployment and environment configuration | not started | GitHub repository and cloud resources |
+| S-10 | AI data-policy enforcement | partly done locally (matrix, bypass scan, redaction tests); console evidence not started | Gemini projects (UQ-3) |
+| S-11 | Backup, restore, deletion propagation | not started | backup key custody (UQ-20) |
+| DS-1 | Bangla font legibility | not started | Bangla readers (UQ-11) |
