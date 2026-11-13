@@ -6,6 +6,7 @@ import { isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
 import { apiGet, idFromSlug, type OpportunityDetail } from '@/lib/api';
 import { getMe } from '@/lib/session';
+import { ApplyActions } from '@/components/apply-actions';
 import { EligibilityCheck } from './eligibility-check';
 
 export const metadata = { robots: { index: false } };
@@ -25,9 +26,20 @@ export default async function Eligibility({
   const d = getDictionary(locale);
   const id = idFromSlug(slug);
   const me = await getMe();
-  const res = id
-    ? await apiGet<OpportunityDetail>(`/api/v1/opportunities/${id}?locale=${locale}`)
-    : ({ kind: 'not_found' } as const);
+  const [res, apps] = await Promise.all([
+    id
+      ? apiGet<OpportunityDetail>(`/api/v1/opportunities/${id}?locale=${locale}`)
+      : Promise.resolve({ kind: 'not_found' } as const),
+    me
+      ? apiGet<Array<{ id: string; opportunity_id: string | null }>>('/api/v1/me/applications', {
+          auth: true,
+        })
+      : Promise.resolve(null),
+  ]);
+  const trackedId =
+    apps && apps.kind === 'ok'
+      ? (apps.data.find((a) => a.opportunity_id === id)?.id ?? null)
+      : null;
   return (
     <Page
       locale={locale}
@@ -58,6 +70,21 @@ export default async function Eligibility({
             locale={locale}
             signedIn={me !== null}
           />
+          <section className="card stack" style={{ marginTop: 24 }}>
+            <h2 style={{ margin: 0 }}>{d.eligibility.readyTitle}</h2>
+            <p className="muted" style={{ margin: 0 }}>
+              {d.eligibility.readyText}
+            </p>
+            <ApplyActions
+              d={d}
+              locale={locale}
+              slug={slug}
+              opportunity={res.data}
+              signedIn={me !== null}
+              trackedId={trackedId}
+              nextPath={`/${locale}/opportunities/${slug}/eligibility`}
+            />
+          </section>
         </>
       ) : res.kind === 'not_found' ? (
         <EmptyState title={d.detail.notFound} text={d.explore.emptyText} />

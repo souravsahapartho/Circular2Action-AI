@@ -108,18 +108,50 @@ function ResultView({
   locale: Locale;
   signedIn: boolean;
 }) {
+  const missing = result.groups
+    .flatMap((g) => g.branches.flatMap((b) => b.rules))
+    .filter((o) => o.result === 'unknown' && o.reason === 'missing_profile');
   const num = (n: number) => new Intl.NumberFormat(locale === 'bn' ? 'bn-BD' : 'en-GB').format(n);
   return (
     <section aria-live="polite" className="card">
       <div className={`verdict ${result.status}`}>
         <StatusBadge status={result.status} label={labels[result.status]} />
         <p>{labels[`verdict_${result.status}` as keyof L]}</p>
-        {signedIn && result.status !== 'eligible' && result.status !== 'not_eligible' ? (
+        {signedIn &&
+        missing.length === 0 &&
+        result.status !== 'eligible' &&
+        result.status !== 'not_eligible' ? (
           <Link className="btn secondary" href={`/${locale}/app/profile`}>
             {labels.addToProfile}
           </Link>
         ) : null}
       </div>
+      {missing.length > 0 ? (
+        <div className="missing">
+          <h3>{labels.missingTitle}</h3>
+          <ul>
+            {missing.map((o) => {
+              const key = `need_${o.ruleType}` as keyof L;
+              return (
+                <li key={o.requirementId}>
+                  <strong>{key in labels ? labels[key] : labels.reason_missing_profile}</strong>
+                  {o.sourceText ? (
+                    <span className="muted small">
+                      {' '}
+                      {t(labels.missingRule, { rule: o.sourceText })}
+                    </span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+          {signedIn ? (
+            <Link className="btn" href={`/${locale}/app/profile`}>
+              {labels.addToProfile}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
       <p className="muted tabular">
         {t(labels.summaryLine, {
           pass: num(result.summary.pass),

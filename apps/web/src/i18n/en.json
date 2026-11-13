@@ -155,7 +155,10 @@
     "applyLink": "Apply on official site",
     "deadline": "Deadline",
     "summary": "About this opportunity",
-    "actions": "Your next steps"
+    "actions": "Your next steps",
+    "applyNow": "Apply now",
+    "noApplyLink": "The application link has not been added yet. Follow the official circular.",
+    "howToApplyLink": "How to apply"
   },
   "eligibility": {
     "title": "Eligibility result",
@@ -219,7 +222,11 @@
     "need_custom": "Check this against the official circular.",
     "guestTitle": "Not signed in? Answer a few questions",
     "requiredSection": "Required conditions",
-    "reachedBy": "Your saved profile"
+    "reachedBy": "Your saved profile",
+    "missingTitle": "Information we still need from you",
+    "readyTitle": "Ready to apply?",
+    "readyText": "Applying happens on the official site. Track it here to keep the deadline and your status in one place.",
+    "missingRule": "Needed for: {rule}"
   },
   "auth": {
     "signInTitle": "Sign in",

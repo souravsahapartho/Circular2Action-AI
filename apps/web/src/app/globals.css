@@ -1456,3 +1456,21 @@ table.data tr:last-child td {
     display: none;
   }
 }
+
+.missing {
+  background: var(--marigold-100);
+  border: 1px solid var(--line-200);
+  border-radius: var(--r-lg);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+.missing h3 {
+  margin: 0 0 8px;
+}
+.missing ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+.missing li {
+  margin-bottom: 6px;
+}

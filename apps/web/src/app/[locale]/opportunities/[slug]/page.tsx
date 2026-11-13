@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
 import { SaveButton } from '@/components/save-button';
-import { TrackButton } from '@/components/track-button';
+import { ApplyActions } from '@/components/apply-actions';
 import {
   Alert,
   Badge,
@@ -14,7 +14,7 @@ import {
 } from '@/components/ui';
 import { formatNumber, isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
-import { apiGet, idFromSlug, safeHref, type OpportunityDetail } from '@/lib/api';
+import { apiGet, idFromSlug, type OpportunityDetail } from '@/lib/api';
 import { getMe } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -72,8 +72,6 @@ export default async function Detail({
 
   const o = res.data;
   const sample = o.title.startsWith('[');
-  const official = safeHref(o.source_url);
-  const apply = safeHref(o.application_url);
   const now = new Date();
   return (
     <Page locale={locale} dict={d} section="explore" path={path} me={me}>
@@ -168,7 +166,7 @@ export default async function Detail({
 
           {o.how_to_apply ? (
             <>
-              <h2>{d.detail.apply}</h2>
+              <h2 id="how-to-apply">{d.detail.apply}</h2>
               <p style={{ maxWidth: '70ch', whiteSpace: 'pre-line' }}>{o.how_to_apply}</p>
             </>
           ) : null}
@@ -180,18 +178,14 @@ export default async function Detail({
             <Link className="btn block" href={`/${locale}/opportunities/${slug}/eligibility`}>
               <Icon name="check" /> {d.detail.checkEligibility}
             </Link>
-            <TrackButton
-              opportunityId={o.id}
-              signedIn={me !== null}
+            <ApplyActions
+              d={d}
               locale={locale}
+              slug={slug}
+              opportunity={o}
+              signedIn={me !== null}
+              trackedId={trackedId}
               nextPath={`/${locale}${path}`}
-              initialTrackedId={trackedId}
-              labels={{
-                track: d.detail.track,
-                tracking: d.detail.tracking,
-                signIn: d.detail.signInToSave,
-              }}
-              errors={d.errors}
             />
             <SaveButton
               opportunityId={o.id}
@@ -202,26 +196,6 @@ export default async function Detail({
               labels={{ save: d.detail.save, saved: d.detail.saved, signIn: d.detail.signInToSave }}
               variant="button"
             />
-            {apply ? (
-              <a
-                className="btn secondary block"
-                href={apply}
-                rel="noopener nofollow"
-                target="_blank"
-              >
-                <Icon name="external" /> {d.detail.applyLink}
-              </a>
-            ) : null}
-            {official ? (
-              <a
-                className="btn ghost block"
-                href={official}
-                rel="noopener nofollow"
-                target="_blank"
-              >
-                <Icon name="file" /> {d.detail.official}
-              </a>
-            ) : null}
           </div>
         </aside>
       </div>
