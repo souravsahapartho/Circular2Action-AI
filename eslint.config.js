@@ -8,6 +8,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/.next/**',
+      '**/next-env.d.ts',
       '**/coverage/**',
       'CIRCULAR2ACTION_*.md',
       'scripts/**',
@@ -15,6 +16,10 @@ export default tseslint.config(
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    files: ['**/*.mjs', '**/next.config.*'],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly', URL: 'readonly' } },
+  },
   {
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',

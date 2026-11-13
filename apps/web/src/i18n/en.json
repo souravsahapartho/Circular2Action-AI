@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "title": "Circular2Action",
+    "description": "Find jobs, scholarships and internships in Bangladesh, check your eligibility and track every deadline."
+  },
+  "nav": {
+    "skip": "Skip to content",
+    "explore": "Explore",
+    "search": "Search",
+    "tracker": "Tracker",
+    "profile": "Profile",
+    "signIn": "Sign in",
+    "language": "Language",
+    "home": "Home",
+    "me": "Me",
+    "primary": "Primary"
+  },
+  "home": {
+    "title": "From circular to action, without missing a deadline",
+    "lead": "Verified job, scholarship and internship circulars in one place. See whether you qualify, rule by rule, and track every date that matters.",
+    "searchLabel": "Search opportunities",
+    "searchPlaceholder": "Post, organisation or keyword",
+    "searchButton": "Search",
+    "tileFind": "Find opportunities",
+    "tileFindText": "Browse verified circulars by category, deadline and location.",
+    "tileCheck": "Check eligibility",
+    "tileCheckText": "Each requirement is checked against your profile with a reason.",
+    "tileTrack": "Track applications",
+    "tileTrackText": "Deadlines, exams and interviews on one list with reminders."
+  },
+  "explore": {
+    "title": "Explore opportunities",
+    "count": "{n} opportunities",
+    "deadline": "Deadline",
+    "organisation": "Organisation",
+    "location": "Location",
+    "daysLeft": "{n} days left",
+    "today": "Closes today",
+    "closed": "Closed",
+    "emptyTitle": "No published opportunities yet",
+    "emptyText": "Opportunities appear here after staff verify them against the official circular."
+  },
+  "search": {
+    "title": "Search",
+    "resultsFor": "Results for “{q}”",
+    "noQuery": "Type a post, organisation or keyword to search.",
+    "emptyTitle": "No results",
+    "emptyText": "Check the spelling, try fewer words, or search in the other language."
+  },
+  "detail": {
+    "facts": "Key facts",
+    "official": "Official circular",
+    "checkEligibility": "Check my eligibility",
+    "report": "Report a problem",
+    "verified": "Verified against the official circular",
+    "notFound": "This opportunity could not be found."
+  },
+  "eligibility": {
+    "title": "Eligibility result",
+    "eligible": "Eligible",
+    "not_eligible": "Not eligible",
+    "needs_verification": "Needs verification",
+    "insufficient_information": "Insufficient information",
+    "rules": "Rule by rule",
+    "disclaimer": "This is a guide based on your profile and the circular as recorded. The official circular decides.",
+    "signInNeeded": "Sign in and complete your profile to see your eligibility for this opportunity."
+  },
+  "signIn": {
+    "title": "Sign in",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "forgot": "Forgot password?",
+    "register": "Create an account",
+    "failed": "Email or password is incorrect.",
+    "unavailable": "Sign-in is not available yet. Please try again later."
+  },
+  "app": {
+    "profileTitle": "Your profile",
+    "trackerTitle": "Application tracker",
+    "signInRequired": "Please sign in to see this page."
+  },
+  "states": {
+    "loading": "Loading…",
+    "errorTitle": "Something went wrong",
+    "errorText": "We could not load this right now. Please try again in a moment.",
+    "retry": "Try again",
+    "backendAsleep": "The service may be waking up. This can take up to a minute."
+  },
+  "footer": {
+    "about": "About",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "help": "Help",
+    "note": "Always confirm details with the official circular before applying."
+  }
+}
