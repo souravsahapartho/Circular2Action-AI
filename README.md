@@ -27,16 +27,16 @@ node scripts/check-migration.mjs    # structural check only; the SQL is NOT appl
 
 ## Layout
 
-| Path | Purpose |
-|---|---|
-| `packages/normalize` | Unicode, Bangla digit folding, tokenising, slugs (plan §9.8) |
-| `packages/dates` | Bangla/English date and time parsing, Dhaka time, age (plan §13.5) |
-| `packages/eligibility` | Deterministic three-valued eligibility engine (plan Module C) |
-| `packages/contracts` | Error codes, permissions, consent purposes, upload state machine, schemas |
-| `apps/api` | Fastify platform skeleton, AI data-policy gateway, job queue and reminder logic, deletion registry |
-| `apps/api/migrations` | Generated, **provisional** SQL (gate S-3 pending) |
-| `docs/` | Status, ADR index, spike (gate) tracker, runbook placeholders |
-| `scripts/` | Migration generator and checker |
+| Path                   | Purpose                                                                                            |
+| ---------------------- | -------------------------------------------------------------------------------------------------- |
+| `packages/normalize`   | Unicode, Bangla digit folding, tokenising, slugs (plan §9.8)                                       |
+| `packages/dates`       | Bangla/English date and time parsing, Dhaka time, age (plan §13.5)                                 |
+| `packages/eligibility` | Deterministic three-valued eligibility engine (plan Module C)                                      |
+| `packages/contracts`   | Error codes, permissions, consent purposes, upload state machine, schemas                          |
+| `apps/api`             | Fastify platform skeleton, AI data-policy gateway, job queue and reminder logic, deletion registry |
+| `apps/api/migrations`  | Generated, **provisional** SQL (gate S-3 pending)                                                  |
+| `docs/`                | Status, ADR index, spike (gate) tracker, runbook placeholders                                      |
+| `scripts/`             | Migration generator and checker                                                                    |
 
 ## Rules for contributors (from the plan)
 
