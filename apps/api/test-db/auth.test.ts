@@ -82,7 +82,7 @@ describe('auth, sessions, RBAC, consent and deletion request on TiDB', () => {
 
   const registration = {
     email: 'Rumana@Example.com',
-    password: 'a good long password',
+    password: 'Good-Long-Pass1!',
     display_name: 'রুমানা',
     age_confirmed: true,
     locale: 'bn',
@@ -229,12 +229,12 @@ describe('auth, sessions, RBAC, consent and deletion request on TiDB', () => {
     expect(list.json().data.filter((s: { current: boolean }) => s.current)).toHaveLength(1);
     const ch = await a.req('POST', '/api/v1/auth/password/change', {
       current_password: registration.password,
-      new_password: 'an even better password',
+      new_password: 'Even-Better-Pass2!',
     });
     expect(ch.statusCode).toBe(204);
     expect((await a.req('GET', '/api/v1/me')).statusCode).toBe(200);
     expect((await other.req('GET', '/api/v1/me')).statusCode).toBe(401);
-    registration.password = 'an even better password';
+    registration.password = 'Even-Better-Pass2!';
   });
 
   it('forgot/reset password: always 202, single-use token, all sessions revoked', async () => {
@@ -257,11 +257,11 @@ describe('auth, sessions, RBAC, consent and deletion request on TiDB', () => {
     const link = mailer.sent.filter((m) => m.template === 'reset_password').at(-1)!.params.link!;
     const reset = await anon.req('POST', '/api/v1/auth/password/reset', {
       token: tokenFrom(link),
-      new_password: 'reset password value',
+      new_password: 'Reset-Pass-Value3!',
     });
     expect(reset.statusCode).toBe(204);
     expect((await a.req('GET', '/api/v1/me')).statusCode).toBe(401);
-    registration.password = 'reset password value';
+    registration.password = 'Reset-Pass-Value3!';
   });
 
   it('RBAC: a staff password login only reaches the MFA step; staff routes stay closed until the second factor', async () => {

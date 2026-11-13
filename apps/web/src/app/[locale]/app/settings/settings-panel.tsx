@@ -162,7 +162,7 @@ export function SettingsPanel({
               type="password"
               autoComplete="new-password"
               required
-              minLength={10}
+              minLength={8}
               className="input"
             />
             <span className="hint">{auth.passwordHint}</span>

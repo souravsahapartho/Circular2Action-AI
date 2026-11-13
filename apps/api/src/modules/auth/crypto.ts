@@ -60,7 +60,10 @@ export function normalizeEmail(email: string): string {
 /** Password policy (plan 9.9): length 10..128, no composition rules. */
 export function passwordProblem(password: string): string | null {
   const n = [...password].length;
-  if (n < 10) return 'Password must be at least 10 characters.';
+  if (n < 8) return 'Password must be at least 8 characters.';
   if (n > 128) return 'Password must be at most 128 characters.';
+  if (!/\p{Ll}/u.test(password)) return 'Password must include a lowercase letter.';
+  if (!/\p{Lu}/u.test(password)) return 'Password must include an uppercase letter.';
+  if (!/[^\p{L}\p{N}\s]/u.test(password)) return 'Password must include a special character.';
   return null;
 }

@@ -103,7 +103,13 @@ export function RegisterForm({
     const password = String(f.get('password') ?? '');
     const local: Record<string, string> = {};
     if (!email.includes('@')) local.email = errors.VALIDATION_ERROR ?? '';
-    if ([...password].length < 10) local.password = labels.passwordHint;
+    if (
+      [...password].length < 8 ||
+      !/\p{Ll}/u.test(password) ||
+      !/\p{Lu}/u.test(password) ||
+      !/[^\p{L}\p{N}\s]/u.test(password)
+    )
+      local.password = labels.passwordHint;
     if (Object.keys(local).length) {
       s.setFields(local);
       s.setBusy(false);
@@ -192,7 +198,7 @@ export function RegisterForm({
           type="password"
           autoComplete="new-password"
           required
-          minLength={10}
+          minLength={8}
           className="input"
           aria-describedby="pw-hint"
         />
@@ -300,7 +306,7 @@ export function ResetForm({
           type="password"
           autoComplete="new-password"
           required
-          minLength={10}
+          minLength={8}
           className="input"
         />
         <span className="hint">{labels.passwordHint}</span>

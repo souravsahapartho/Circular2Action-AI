@@ -47,7 +47,7 @@ describe('signup, profile, saved, tracker, staff MFA and posting on TiDB', () =>
     await t.drop();
   });
 
-  const signup = (email: string, password = 'a long enough password') => {
+  const signup = (email: string, password = 'Long-Enough-Pass1!') => {
     const b = new Browser(app);
     return b.csrf().then(async () => {
       const res = await b.req('POST', '/api/v1/auth/register', {
@@ -81,7 +81,7 @@ describe('signup, profile, saved, tracker, staff MFA and posting on TiDB', () =>
     const { b, res } = await signup('new.user@example.com');
     expect(res.statusCode).toBe(202);
     expect(res.json().data.email_verification_required).toBe(false);
-    expect((await b.login('new.user@example.com', 'a long enough password')).statusCode).toBe(200);
+    expect((await b.login('new.user@example.com', 'Long-Enough-Pass1!')).statusCode).toBe(200);
     expect((await b.req('GET', '/api/v1/me')).json().data.email_verified).toBe(true);
     // a duplicate gets the same answer
     const dup = await signup('NEW.user@example.com');

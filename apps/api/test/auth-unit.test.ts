@@ -33,11 +33,15 @@ describe('auth crypto', () => {
     expect(await verifyPassword('not-a-hash', 'x')).toBe(false);
   });
 
-  it('password policy: 10..128 characters, counted as code points (Bangla included)', () => {
+  it('password policy: 8..128 characters, lower+upper+special, counted as code points (Bangla included)', () => {
     expect(passwordProblem('short')).not.toBeNull();
-    expect(passwordProblem('a'.repeat(10))).toBeNull();
+    expect(passwordProblem('Abcdef1!')).toBeNull();
+    expect(passwordProblem('abcdefgh1!')).not.toBeNull();
+    expect(passwordProblem('ABCDEFGH1!')).not.toBeNull();
+    expect(passwordProblem('Abcdefgh12')).not.toBeNull();
+    expect(passwordProblem('Abc1!')).not.toBeNull();
     expect(passwordProblem('a'.repeat(129))).not.toBeNull();
-    expect(passwordProblem('পাসওয়ার্ড১২৩৪')).toBeNull();
+    expect(passwordProblem('Pass-পাসওয়ার্ড১২৩৪')).toBeNull();
   });
 
   it('tokens are 32 random bytes in base64url', () => {
