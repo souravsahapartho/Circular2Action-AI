@@ -1,9 +1,18 @@
 import { buildApp } from './app';
+import { createDb } from './db/pool';
+import { databaseCheck } from './db/readiness';
 import { loadConfig } from './platform/config';
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const app = buildApp({ config });
+  const db = config.DATABASE_URL
+    ? createDb({
+        url: config.DATABASE_URL,
+        tls: config.DATABASE_TLS,
+        connectionLimit: config.DATABASE_POOL_SIZE,
+      })
+    : null;
+  const app = buildApp({ config, readiness: [databaseCheck(db)] });
 
   // Graceful shutdown (plan SCH-04): stop accepting work, finish in-flight requests, exit before the platform SIGKILL.
   const shutdown = async (signal: string): Promise<void> => {
@@ -11,6 +20,7 @@ async function main(): Promise<void> {
     const timer = setTimeout(() => process.exit(1), config.SHUTDOWN_GRACE_SECONDS * 1000);
     timer.unref();
     await app.close();
+    await db?.close().catch(() => undefined);
     process.exit(0);
   };
   process.on('SIGTERM', () => void shutdown('SIGTERM'));

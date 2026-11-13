@@ -32,6 +32,11 @@ export const envSchema = z
     EMAIL_PROVIDER: z.enum(['resend', 'ses', 'log']).default('log'),
     EMAIL_DAILY_CAP: z.coerce.number().int().min(0).default(80),
     EMAIL_RESERVED_SECURITY_PCT: z.coerce.number().int().min(0).max(100).default(60),
+    /** Runtime database user (DML only). mysql://user:pass@host:port/db */
+    DATABASE_URL: z.string().url().optional(),
+    /** TLS is required for TiDB Cloud; off only for the local container. */
+    DATABASE_TLS: bool,
+    DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
   })
   .superRefine((env, ctx) => {
     // SCH-02: no keep-alive. A free instance must really sleep between ticks.
@@ -55,6 +60,20 @@ export const envSchema = z
         code: 'custom',
         path: ['AI_PROVIDER'],
         message: 'The mock AI provider cannot run in production',
+      });
+    }
+    if (env.APP_ENV !== 'local' && !env.DATABASE_URL) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['DATABASE_URL'],
+        message: 'DATABASE_URL is required outside local development',
+      });
+    }
+    if (env.APP_ENV !== 'local' && env.DATABASE_URL && !env.DATABASE_TLS) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['DATABASE_TLS'],
+        message: 'DATABASE_TLS must be true outside local development (TiDB Cloud requires TLS)',
       });
     }
     const secrets = env.INTERNAL_HMAC_SECRETS.split(',').map((s) => s.trim());
@@ -81,4 +100,26 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   }
   const { INTERNAL_HMAC_SECRETS, ...rest } = parsed.data;
   return { ...rest, hmacSecrets: INTERNAL_HMAC_SECRETS.split(',').map((s) => s.trim()) };
+}
+
+const migrationSchema = z.object({
+  /** DDL-capable user used only by the migration command (plan section 11.16). Falls back to DATABASE_URL. */
+  DATABASE_MIGRATION_URL: z.string().url().optional(),
+  DATABASE_URL: z.string().url().optional(),
+  DATABASE_TLS: bool,
+});
+
+export interface MigrationConfig {
+  url: string;
+  tls: boolean;
+}
+
+export function loadMigrationConfig(
+  env: Record<string, string | undefined> = process.env,
+): MigrationConfig {
+  const parsed = migrationSchema.safeParse(env);
+  if (!parsed.success) throw new Error('Invalid migration configuration');
+  const url = parsed.data.DATABASE_MIGRATION_URL ?? parsed.data.DATABASE_URL;
+  if (!url) throw new Error('Set DATABASE_MIGRATION_URL (or DATABASE_URL) to run migrations');
+  return { url, tls: parsed.data.DATABASE_TLS };
 }

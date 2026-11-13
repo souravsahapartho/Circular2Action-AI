@@ -36,5 +36,5 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(
-  'No structural problems found (syntax only; NOT applied to any database, gate S-3 pending).',
+  'No structural problems found (static check; the apply test is apps/api/test-db/migrate.test.ts).',
 );

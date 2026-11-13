@@ -1,0 +1,19 @@
+# Local development database (plan DBC-09: local and CI databases are TiDB, never MySQL 8).
+# Single-node TiDB with the embedded unistore engine. Pinned; keep in step with the Starter cluster version
+# recorded in docs/spikes/S-3/README.md. Host port 4100 avoids the API's port 4000.
+services:
+  tidb:
+    image: pingcap/tidb:v8.5.3
+    container_name: c2a-tidb
+    ports:
+      - '127.0.0.1:4100:4000'
+    command: ['--store=unistore', '--path=/data/tidb', '--advertise-address=127.0.0.1']
+    volumes:
+      - tidb-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O- http://127.0.0.1:10080/status || exit 1']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+volumes:
+  tidb-data:

@@ -86,11 +86,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     });
     if (result !== 'ok') {
       req.log.warn({ result }, 'internal tick rejected');
-      return reply
-        .status(401)
-        .send({
-          error: { code: 'UNAUTHENTICATED', message: 'Invalid signature.', request_id: req.id },
-        });
+      return reply.status(401).send({
+        error: { code: 'UNAUTHENTICATED', message: 'Invalid signature.', request_id: req.id },
+      });
     }
     const out = deps.onTick ? await deps.onTick() : { enqueued: 0 };
     return reply.status(202).send({ data: out });

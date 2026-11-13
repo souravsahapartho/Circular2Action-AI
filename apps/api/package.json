@@ -7,7 +7,9 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "migrate": "tsx src/db/migrate-cli.ts",
+    "test:db": "vitest run --config vitest.db.config.ts"
   },
   "dependencies": {
     "@c2a/contracts": "workspace:*",
@@ -15,6 +17,7 @@
     "@c2a/eligibility": "workspace:*",
     "@c2a/normalize": "workspace:*",
     "fastify": "^5.0.0",
+    "mysql2": "^3",
     "pino": "^9.5.0",
     "zod": "^3.23.8"
   },
