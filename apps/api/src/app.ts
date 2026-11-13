@@ -6,6 +6,9 @@ import { ReplayCache, verifyInternal } from './platform/hmac';
 import { loggerOptions } from './platform/logger';
 import { LIMITS, RateLimiter } from './platform/rate-limit';
 import { registerSecurityHeaders } from './platform/security-headers';
+import type { Mailer } from './modules/email/mailer';
+import type { AuthRepo } from './modules/auth/repo';
+import { registerAuth } from './modules/auth/routes';
 
 export interface ReadinessCheck {
   name: string;
@@ -18,6 +21,8 @@ export interface AppDeps {
   readiness?: ReadinessCheck[];
   /** Called by the signed tick endpoint; enqueues due periodic work (plan SCH-03). */
   onTick?: () => Promise<{ enqueued: number }>;
+  /** Identity module (needs the database). Omitted in platform-only tests. */
+  auth?: { repo: AuthRepo; mailer: Mailer };
 }
 
 /** Build the Fastify app. Routes are added per module; this is the platform skeleton (Phase 0). */
@@ -93,6 +98,16 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const out = deps.onTick ? await deps.onTick() : { enqueued: 0 };
     return reply.status(202).send({ data: out });
   });
+
+  if (deps.auth) {
+    registerAuth(app, {
+      ...deps.auth,
+      clock,
+      appEnv: config.APP_ENV,
+      webOrigin: config.WEB_ORIGIN,
+      secret: config.hmacSecrets[0]!,
+    });
+  }
 
   return app;
 }

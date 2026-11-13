@@ -8,7 +8,6 @@ import { apiGet, idFromSlug, type OpportunityDetail } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
-
 export default async function Detail({
   params,
 }: {

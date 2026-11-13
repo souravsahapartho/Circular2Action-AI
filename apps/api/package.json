@@ -16,10 +16,11 @@
     "@c2a/dates": "workspace:*",
     "@c2a/eligibility": "workspace:*",
     "@c2a/normalize": "workspace:*",
+    "@node-rs/argon2": "^2",
     "fastify": "^5.0.0",
     "mysql2": "^3",
     "pino": "^9.5.0",
-    "zod": "^3.23.8",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "zod": "^3.23.8"
   }
 }

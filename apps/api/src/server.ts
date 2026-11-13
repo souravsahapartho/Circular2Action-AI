@@ -1,6 +1,8 @@
 import { buildApp } from './app';
 import { createDb } from './db/pool';
 import { databaseCheck } from './db/readiness';
+import { AuthRepo } from './modules/auth/repo';
+import { LogMailer } from './modules/email/mailer';
 import { loadConfig } from './platform/config';
 
 async function main(): Promise<void> {
@@ -12,7 +14,18 @@ async function main(): Promise<void> {
         connectionLimit: config.DATABASE_POOL_SIZE,
       })
     : null;
-  const app = buildApp({ config, readiness: [databaseCheck(db)] });
+  const app = buildApp({
+    config,
+    readiness: [databaseCheck(db)],
+    ...(db
+      ? {
+          auth: {
+            repo: new AuthRepo(db),
+            mailer: new LogMailer((o, m) => console.warn(m, JSON.stringify(o))),
+          },
+        }
+      : {}),
+  });
 
   // Graceful shutdown (plan SCH-04): stop accepting work, finish in-flight requests, exit before the platform SIGKILL.
   const shutdown = async (signal: string): Promise<void> => {

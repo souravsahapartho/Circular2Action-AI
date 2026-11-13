@@ -21,9 +21,13 @@ export function SignInForm({ labels }: { labels: Labels }) {
     setError(null);
     const form = new FormData(e.currentTarget);
     try {
+      // Pre-session CSRF (plan 9.9): fetch a signed token, which also sets the cookie, then echo it in a header.
+      const csrfRes = await fetch('/api/v1/auth/csrf', { credentials: 'same-origin' });
+      if (!csrfRes.ok) throw new Error('csrf');
+      const { data } = (await csrfRes.json()) as { data: { csrf_token: string } };
       const res = await fetch('/api/v1/auth/login', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-csrf-token': data.csrf_token },
         body: JSON.stringify({ email: form.get('email'), password: form.get('password') }),
         credentials: 'same-origin',
       });
