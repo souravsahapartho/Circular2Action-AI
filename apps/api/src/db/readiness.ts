@@ -2,7 +2,7 @@ import type { ReadinessCheck } from '../app';
 import type { Db } from './pool';
 
 /** /readyz database check: a ping with a timeout, so an unreachable or unconfigured database reports 503. */
-export function databaseCheck(db: Db | null, timeoutMs = 3000): ReadinessCheck {
+export function databaseCheck(db: Db | null, timeoutMs = 8000): ReadinessCheck {
   return {
     name: 'database',
     check: async () => {
