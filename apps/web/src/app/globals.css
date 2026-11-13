@@ -33,8 +33,7 @@
   --e-2: 0 8px 24px rgb(23 32 31 / 0.14);
 
   --font-ui:
-    var(--font-anek-bangla), var(--font-anek-latin), var(--font-noto-bengali), system-ui,
-    -apple-system, 'Segoe UI', sans-serif;
+    var(--font-inter), var(--font-noto-bengali), system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'Cascadia Code', Menlo, monospace;
   --lh-body: 1.6;
   --content-max: 1200px;
@@ -1116,9 +1115,45 @@ textarea.input {
 }
 .rule-row {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   padding: 12px 0;
   border-bottom: 1px solid var(--line-200);
+}
+.rule-row:last-child {
+  border-bottom: 0;
+}
+.rule-outcome {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.verdict {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line-200);
+  border-left-width: 5px;
+  background: var(--paper-50);
+}
+.verdict p {
+  margin: 0;
+  max-width: 62ch;
+}
+.verdict.eligible {
+  border-left-color: var(--success-700);
+}
+.verdict.not_eligible {
+  border-left-color: var(--danger-700);
+}
+.verdict.needs_verification {
+  border-left-color: var(--info-700);
+}
+.verdict.insufficient_information {
+  border-left-color: var(--marigold-500, #d99a00);
 }
 
 /* tracker */

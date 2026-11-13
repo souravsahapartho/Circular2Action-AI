@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   evaluate,
   type EducationRecord,
@@ -51,7 +51,17 @@ function reasonText(o: RuleOutcome, labels: L): string | null {
   return key && key in labels ? labels[key] : null;
 }
 
-function RuleRow({ o, labels }: { o: RuleOutcome; labels: L }) {
+function RuleRow({
+  o,
+  labels,
+  locale,
+  signedIn,
+}: {
+  o: RuleOutcome;
+  labels: L;
+  locale: Locale;
+  signedIn: boolean;
+}) {
   const icon = o.result === 'pass' ? '✓' : o.result === 'fail' ? '✕' : '?';
   const cls =
     o.result === 'pass'
@@ -59,17 +69,27 @@ function RuleRow({ o, labels }: { o: RuleOutcome; labels: L }) {
       : o.result === 'fail'
         ? 'not_eligible'
         : 'insufficient_information';
+  const needKey = `need_${o.ruleType}` as keyof L;
+  const hint =
+    o.result !== 'unknown'
+      ? null
+      : o.reason === 'missing_profile' && needKey in labels
+        ? labels[needKey]
+        : reasonText(o, labels);
   return (
     <li className="rule-row">
       <span>{o.sourceText ?? o.ruleType}</span>
-      <span>
+      <span className="rule-outcome">
         <span className={`status ${cls}`}>
           <span aria-hidden="true">{icon}</span>
           {labels[o.result]}
         </span>
-        {o.result === 'unknown' ? (
-          <span className="muted small" style={{ marginLeft: 8 }}>
-            {reasonText(o, labels)}
+        {hint ? (
+          <span className="muted small">
+            {hint}{' '}
+            {signedIn && o.reason === 'missing_profile' ? (
+              <Link href={`/${locale}/app/profile`}>{labels.addToProfile}</Link>
+            ) : null}
           </span>
         ) : null}
       </span>
@@ -81,17 +101,25 @@ function ResultView({
   result,
   labels,
   locale,
+  signedIn,
 }: {
   result: EvaluationResult;
   labels: L;
   locale: Locale;
+  signedIn: boolean;
 }) {
   const num = (n: number) => new Intl.NumberFormat(locale === 'bn' ? 'bn-BD' : 'en-GB').format(n);
   return (
-    <section aria-live="polite" className="card" style={{ marginTop: 24 }}>
-      <h2 style={{ marginTop: 0 }}>
+    <section aria-live="polite" className="card">
+      <div className={`verdict ${result.status}`}>
         <StatusBadge status={result.status} label={labels[result.status]} />
-      </h2>
+        <p>{labels[`verdict_${result.status}` as keyof L]}</p>
+        {signedIn && result.status !== 'eligible' && result.status !== 'not_eligible' ? (
+          <Link className="btn secondary" href={`/${locale}/app/profile`}>
+            {labels.addToProfile}
+          </Link>
+        ) : null}
+      </div>
       <p className="muted tabular">
         {t(labels.summaryLine, {
           pass: num(result.summary.pass),
@@ -99,11 +127,19 @@ function ResultView({
           unknown: num(result.summary.unknown),
         })}
       </p>
-      <h3>{labels.rules}</h3>
+      <h3>{labels.requiredSection}</h3>
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {result.groups.flatMap((g) =>
           g.branches.flatMap((b) =>
-            b.rules.map((o) => <RuleRow key={o.requirementId} o={o} labels={labels} />),
+            b.rules.map((o) => (
+              <RuleRow
+                key={o.requirementId}
+                o={o}
+                labels={labels}
+                locale={locale}
+                signedIn={signedIn}
+              />
+            )),
           ),
         )}
       </ul>
@@ -112,7 +148,13 @@ function ResultView({
           <h3 style={{ marginTop: 20 }}>{labels.preferredTitle}</h3>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
             {result.preferred.map((o) => (
-              <RuleRow key={o.requirementId} o={o} labels={labels} />
+              <RuleRow
+                key={o.requirementId}
+                o={o}
+                labels={labels}
+                locale={locale}
+                signedIn={signedIn}
+              />
             ))}
           </ul>
         </>
@@ -170,31 +212,38 @@ export function EligibilityCheck({
     return evaluate(profile, reqs, todayDhaka());
   }, [submitted, dob, level, gpa, reqs]);
 
-  async function useSavedProfile() {
+  async function runSavedCheck() {
     setBusy(true);
     setError(null);
     const out = await callApi<EvaluationResult>(
       'POST',
-      `/api/v1/opportunities/${opportunityId}/eligibility`,
+      `/api/v1/opportunities/${opportunityId}/eligibility?locale=${locale}`,
     );
     setBusy(false);
     if (out.ok && out.data) setSaved(out.data);
     else setError(errorMessage(errors, out));
   }
 
+  useEffect(() => {
+    if (signedIn) void runSavedCheck();
+  }, [signedIn, opportunityId]);
+
   return (
     <div className="stack">
       {signedIn ? (
         <div className="card">
-          <p style={{ marginTop: 0 }}>{labels.profileIntro}</p>
+          <p style={{ marginTop: 0 }}>
+            {busy && !saved ? labels.loadingProfile : labels.profileIntro}
+          </p>
           <div className="row-flex">
             <button
               className="btn"
               type="button"
               disabled={busy}
-              onClick={() => void useSavedProfile()}
+              onClick={() => void runSavedCheck()}
             >
-              <Icon name="check" /> {busy ? labels.checking : labels.useProfile}
+              <Icon name="check" />{' '}
+              {busy ? labels.checking : saved ? labels.checkAgain : labels.useProfile}
             </button>
             <Link className="btn secondary" href={`/${locale}/app/profile`}>
               <Icon name="user" /> {labels.editProfile}
@@ -207,11 +256,11 @@ export function EligibilityCheck({
           ) : null}
         </div>
       ) : null}
-      {saved ? <ResultView result={saved} labels={labels} locale={locale} /> : null}
+      {saved ? <ResultView result={saved} labels={labels} locale={locale} signedIn /> : null}
 
       <details className="card" open={!signedIn}>
         <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-          {signedIn ? labels.tryGuest : labels.intro}
+          {signedIn ? labels.tryGuest : labels.guestTitle}
         </summary>
         <p className="muted small" style={{ marginTop: 12 }}>
           {labels.privacy}
@@ -278,7 +327,9 @@ export function EligibilityCheck({
           </button>
         </form>
       </details>
-      {guestResult ? <ResultView result={guestResult} labels={labels} locale={locale} /> : null}
+      {guestResult ? (
+        <ResultView result={guestResult} labels={labels} locale={locale} signedIn={signedIn} />
+      ) : null}
       {!signedIn ? (
         <p className="muted">
           <Link href={`/${locale}/sign-in`}>{labels.signInSave}</Link>

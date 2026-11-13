@@ -24,10 +24,12 @@ function readCookie(name: string): string | null {
   return null;
 }
 
-async function csrfToken(): Promise<string> {
-  for (const n of CSRF_COOKIES) {
-    const v = readCookie(n);
-    if (v) return v;
+async function csrfToken(fresh = false): Promise<string> {
+  if (!fresh) {
+    for (const n of CSRF_COOKIES) {
+      const v = readCookie(n);
+      if (v) return v;
+    }
   }
   const res = await fetch('/api/v1/auth/csrf', { credentials: 'same-origin' });
   const body = (await res.json()) as { data: { csrf_token: string } };
@@ -40,17 +42,28 @@ export async function callApi<T = unknown>(
   body?: unknown,
 ): Promise<ApiOutcome<T>> {
   try {
-    const headers: Record<string, string> = { accept: 'application/json' };
-    if (method !== 'GET') {
-      headers['content-type'] = 'application/json';
-      headers['x-csrf-token'] = await csrfToken();
+    const send = async (fresh: boolean): Promise<Response> => {
+      const headers: Record<string, string> = { accept: 'application/json' };
+      if (method !== 'GET') {
+        headers['content-type'] = 'application/json';
+        headers['x-csrf-token'] = await csrfToken(fresh);
+      }
+      return fetch(path, {
+        method,
+        headers,
+        credentials: 'same-origin',
+        ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      });
+    };
+    let res = await send(false);
+    // a stale CSRF cookie (for example after a server key change) is replaced once, then the request is retried
+    if (res.status === 403 && method !== 'GET') {
+      const peek = (await res
+        .clone()
+        .json()
+        .catch(() => null)) as { error?: { code?: string } } | null;
+      if (peek?.error?.code === 'CSRF_FAILED') res = await send(true);
     }
-    const res = await fetch(path, {
-      method,
-      headers,
-      credentials: 'same-origin',
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    });
     if (res.status === 204) return { ok: true, status: 204 };
     const json = (await res.json().catch(() => null)) as { data?: T; error?: ApiError } | null;
     if (res.ok)

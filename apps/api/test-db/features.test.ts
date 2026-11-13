@@ -527,7 +527,7 @@ describe('signup, profile, saved, tracker, staff MFA and posting on TiDB', () =>
     });
     const detail = (await pub(`/api/v1/opportunities/${id}?locale=en`)).json().data;
     expect(detail).toMatchObject({
-      title: 'সহকারী প্রকৌশলী (বিদ্যুৎ)',
+      title: 'Assistant Engineer (Electrical)',
       verified: true,
       vacancies: 20,
       location: 'Dhaka',

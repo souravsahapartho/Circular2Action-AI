@@ -198,7 +198,8 @@ export function registerMe(
   // ---- eligibility from the saved profile ----
   r('POST', '/api/v1/opportunities/:id/eligibility', async (req) => {
     const id = bigintId((req.params as { id: string }).id);
-    const o = await opportunities.get(id, 'en', clock.now());
+    const loc = (req.query as { locale?: string }).locale === 'bn' ? 'bn' : 'en';
+    const o = await opportunities.get(id, loc, clock.now());
     if (!o) throw new AppError('NOT_FOUND', 'Opportunity not found.');
     const profile = await repo.eligibilityProfile(req.auth!.userId);
     const reqs: Requirement[] = (o.requirements ?? []).map((q) => ({

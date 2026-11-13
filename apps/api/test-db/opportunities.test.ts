@@ -102,13 +102,13 @@ describe('opportunity browse, detail and search on TiDB', () => {
     const res = await get(`/api/v1/opportunities/${prog.id}?locale=en`);
     expect(res.statusCode).toBe(200);
     const d = res.json().data;
-    expect(d.title).toBe('[নমুনা] সহকারী প্রোগ্রামার');
+    expect(d.title).toBe('[Sample] Assistant Programmer');
     expect(d.summary).toContain('sample data');
     expect(d.vacancies).toBe(5);
     expect(d.verified).toBe(false);
     expect(d.requirements).toHaveLength(3);
     expect(d.requirements[0]).toMatchObject({ verified: true, machine_evaluable: true });
-    expect(d.requirements.every((r: { text: string }) => r.text.includes(' / '))).toBe(true);
+    expect(d.requirements.every((r: { text: string }) => !r.text.includes(' / '))).toBe(true);
     expect(typeof d.requirements[0].params).toBe('object');
     expect(d.requirements.map((r: { rule_type: string }) => r.rule_type).sort()).toEqual([
       'age',

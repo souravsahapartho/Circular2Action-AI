@@ -1,21 +1,15 @@
-import { Anek_Bangla, Anek_Latin, Noto_Sans_Bengali } from 'next/font/google';
+import { Inter, Noto_Sans_Bengali } from 'next/font/google';
 
-// Anek Bangla is the planned body font; Noto Sans Bengali is the DS-1 fallback until the legibility gate decides.
-export const anekBangla = Anek_Bangla({
-  subsets: ['bengali', 'latin'],
-  variable: '--font-anek-bangla',
-  display: 'swap',
-});
-export const anekLatin = Anek_Latin({
+// Inter for Latin text and Noto Sans Bengali for Bangla: neutral, widely used UI faces with full weight ranges.
+export const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-anek-latin',
+  variable: '--font-inter',
   display: 'swap',
 });
 export const notoBengali = Noto_Sans_Bengali({
-  subsets: ['bengali'],
+  subsets: ['bengali', 'latin'],
   variable: '--font-noto-bengali',
   display: 'swap',
-  preload: false,
 });
 
-export const fontClasses = `${anekBangla.variable} ${anekLatin.variable} ${notoBengali.variable}`;
+export const fontClasses = `${inter.variable} ${notoBengali.variable}`;

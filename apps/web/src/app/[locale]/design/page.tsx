@@ -12,7 +12,7 @@ const SAMPLE =
   'আবেদনকারীর বয়স ২০২৬ সালের ১ ডিসেম্বর তারিখে ১৮ থেকে ৩০ বছরের মধ্যে হতে হবে। স্নাতক বা সমমানের ডিগ্রি এবং কম্পিউটার চালনায় দক্ষতা থাকতে হবে। আবেদন ফি ২০০ টাকা, অনলাইনে জমা দিতে হবে। লিখিত, ব্যবহারিক ও মৌখিক পরীক্ষার তারিখ পরে জানানো হবে।';
 
 const FONTS = [
-  { name: 'Anek Bangla', varName: '--font-anek-bangla' },
+  { name: 'Inter', varName: '--font-inter' },
   { name: 'Noto Sans Bengali', varName: '--font-noto-bengali' },
 ];
 const SIZES = [14, 15, 16];

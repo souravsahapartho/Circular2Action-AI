@@ -84,11 +84,33 @@ export function likeEscape(s: string): string {
   return s.replace(/[\\%_]/g, (m) => `\\${m}`);
 }
 
+const BENGALI = /[ঀ-৿]/;
+
+/** The title is as written in the circular; the alternate title is the other language. Show the one matching the page language. */
+export function titleFor(title: string, alt: string | null, locale: Locale): string {
+  if (!alt) return title;
+  const titleIsBengali = BENGALI.test(title);
+  const altIsBengali = BENGALI.test(alt);
+  if (locale === 'bn') return !titleIsBengali && altIsBengali ? alt : title;
+  return titleIsBengali && !altIsBengali ? alt : title;
+}
+
+/** Requirement text may carry both languages as "বাংলা / English"; show the half that matches the page language. */
+export function textFor(text: string | null, locale: Locale): string | null {
+  if (!text) return text;
+  const i = text.indexOf(' / ');
+  if (i < 0) return text;
+  const a = text.slice(0, i).trim();
+  const b = text.slice(i + 3).trim();
+  if (BENGALI.test(a) && !BENGALI.test(b) && b) return locale === 'bn' ? a : b;
+  return text;
+}
+
 function toSummary(r: ListRow, locale: Locale): OpportunitySummary {
   return {
     id: String(r.id),
     slug: r.slug,
-    title: r.title,
+    title: titleFor(r.title, r.title_alt, locale),
     organization: (locale === 'bn' ? (r.org_bn ?? r.org_en) : (r.org_en ?? r.org_bn)) ?? '',
     location: (locale === 'bn' ? (r.loc_bn ?? r.loc_en) : (r.loc_en ?? r.loc_bn)) ?? null,
     deadline_at: r.deadline_at ? r.deadline_at.toISOString() : null,
@@ -204,7 +226,7 @@ export class OpportunityRepo {
             : x.params,
         machine_evaluable: Number(x.machine_evaluable) === 1,
         verified: x.verification_state === 'verified',
-        text: x.source_text,
+        text: textFor(x.source_text, locale),
       })),
     };
   }

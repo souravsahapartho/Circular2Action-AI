@@ -295,7 +295,23 @@ export async function seedDemo(db: Db, now: Date): Promise<number> {
   let created = 0;
   for (const d of DEMO) {
     const slug = `demo-${d.key}`;
-    if (await idOf(db, 'opportunities', slug)) continue;
+    const existing = await idOf(db, 'opportunities', slug);
+    if (existing) {
+      // refresh the bilingual requirement text on rows created by an earlier version of this seed
+      const rows = await db.query<Row & { id: string }>(
+        'SELECT id FROM opportunity_requirements WHERE opportunity_id = :o ORDER BY id',
+        { o: existing },
+      );
+      if (rows.length === d.reqs.length) {
+        for (const [i, r] of d.reqs.entries()) {
+          await db.execute(
+            'UPDATE opportunity_requirements SET source_text = :txt WHERE id = :id AND source_text <> :txt',
+            { txt: r.text, id: rows[i]!.id },
+          );
+        }
+      }
+      continue;
+    }
     const categoryId = (await idOf(db, 'opportunity_categories', d.category))!;
     const locationId = await idOf(db, 'locations', d.location);
     await db.transaction(async (tx) => {
