@@ -9,6 +9,10 @@ import { registerSecurityHeaders } from './platform/security-headers';
 import type { Mailer } from './modules/email/mailer';
 import type { AuthRepo } from './modules/auth/repo';
 import { guardOptionsFor, registerAuth } from './modules/auth/routes';
+import type { AdminRepo } from './modules/admin/repo';
+import { registerAdmin } from './modules/admin/routes';
+import type { MeRepo } from './modules/me/repo';
+import { registerMe } from './modules/me/routes';
 import type { OpportunityRepo } from './modules/opportunities/repo';
 import { registerOpportunities } from './modules/opportunities/routes';
 
@@ -27,6 +31,10 @@ export interface AppDeps {
   auth?: { repo: AuthRepo; mailer: Mailer };
   /** Public opportunity browse, detail and search (needs the database). */
   opportunities?: { repo: OpportunityRepo };
+  /** Profile, saved, tracker, eligibility (signed-in user). */
+  me?: { repo: MeRepo };
+  /** Staff API (permissions + second factor). */
+  admin?: { repo: AdminRepo };
 }
 
 /** Build the Fastify app. Routes are added per module; this is the platform skeleton (Phase 0). */
@@ -124,6 +132,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
   if (deps.opportunities)
     registerOpportunities(app, { repo: deps.opportunities.repo, clock, guard });
+  if (deps.admin) registerAdmin(app, { repo: deps.admin.repo, guard });
+  if (deps.me && deps.opportunities) {
+    registerMe(app, { repo: deps.me.repo, opportunities: deps.opportunities.repo, clock, guard });
+  }
 
   if (deps.auth) {
     registerAuth(app, {
@@ -133,6 +145,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       webOrigin: config.WEB_ORIGIN,
       webOriginsExtra: config.webOriginsExtra,
       secret: config.hmacSecrets[0]!,
+      emailVerificationRequired: config.EMAIL_VERIFICATION_REQUIRED,
     });
   }
 

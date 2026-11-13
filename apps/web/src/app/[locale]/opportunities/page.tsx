@@ -1,74 +1,174 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
-import { EmptyState, ErrorState, OpportunityRows } from '@/components/states';
+import { OpportunityList } from '@/components/opportunity-list';
+import { EmptyState, ErrorState, Icon, Pagination } from '@/components/ui';
 import { formatNumber, isLocale } from '@/i18n/config';
 import { getDictionary, t } from '@/i18n/dictionaries';
-import { apiGet, type OpportunitySummary } from '@/lib/api';
+import { apiGet, type CategoryInfo, type LocationInfo, type OpportunitySummary } from '@/lib/api';
+import { getMe } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
-
-const CATEGORIES = ['jobs', 'internships', 'scholarships'] as const;
+const PAGE_SIZE = 10;
 
 export default async function Explore({
   params,
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{ category?: string; location?: string; sort?: string; page?: string }>;
 }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   const d = getDictionary(locale);
-  const requested = (await searchParams).category;
-  const category = CATEGORIES.find((c) => c === requested);
-  const res = await apiGet<OpportunitySummary[]>(
-    `/api/v1/opportunities?locale=${locale}${category ? `&category=${category}` : ''}`,
-  );
-  const tab = (slug: string | undefined, label: string) => {
-    const active = slug === category;
-    return (
-      <li key={slug ?? 'all'}>
-        <Link
-          href={slug ? `/${locale}/opportunities?category=${slug}` : `/${locale}/opportunities`}
-          aria-current={active ? 'page' : undefined}
-          className={`btn${active ? '' : ' secondary'}`}
-        >
-          {label}
-        </Link>
-      </li>
-    );
+  const sp = await searchParams;
+  const category = /^[a-z0-9-]{1,100}$/.test(sp.category ?? '') ? sp.category : undefined;
+  const location = /^[a-z0-9-]{1,120}$/.test(sp.location ?? '') ? sp.location : undefined;
+  const sort = sp.sort === 'newest' ? 'newest' : 'deadline';
+  const page = Math.max(1, Math.min(500, Number.parseInt(sp.page ?? '1', 10) || 1));
+
+  const me = await getMe();
+  const qs = new URLSearchParams({
+    locale,
+    sort,
+    limit: String(PAGE_SIZE),
+    offset: String((page - 1) * PAGE_SIZE),
+  });
+  if (category) qs.set('category', category);
+  if (location) qs.set('location', location);
+  const [list, cats, locs, saved] = await Promise.all([
+    apiGet<OpportunitySummary[]>(`/api/v1/opportunities?${qs}`),
+    apiGet<CategoryInfo[]>(`/api/v1/categories?locale=${locale}`),
+    apiGet<LocationInfo[]>(`/api/v1/locations?locale=${locale}`),
+    me ? apiGet<string[]>('/api/v1/me/saved-ids', { auth: true }) : Promise.resolve(null),
+  ]);
+  const savedIds = me ? new Set(saved && saved.kind === 'ok' ? saved.data : []) : null;
+
+  const href = (over: Record<string, string | undefined>) => {
+    const p = new URLSearchParams();
+    const merged = {
+      category,
+      location,
+      sort: sort === 'deadline' ? undefined : sort,
+      page: undefined,
+      ...over,
+    };
+    for (const [k, v] of Object.entries(merged)) if (v) p.set(k, v);
+    const s = p.toString();
+    return `/${locale}/opportunities${s ? `?${s}` : ''}`;
   };
+  const total = list.kind === 'ok' ? (list.total ?? list.data.length) : 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const filtered = Boolean(category || location);
+  const nf = (n: number) => formatNumber(n, locale);
+
   return (
-    <Page locale={locale} dict={d} section="explore" path="/opportunities">
+    <Page
+      locale={locale}
+      dict={d}
+      section="explore"
+      path={`/opportunities${page > 1 || filtered ? `?${new URLSearchParams(Object.fromEntries(Object.entries({ category, location, sort: sort === 'newest' ? 'newest' : undefined, page: page > 1 ? String(page) : undefined }).filter(([, v]) => v) as Array<[string, string]>))}` : ''}`}
+      me={me}
+    >
       <h1>{d.explore.title}</h1>
-      <nav aria-label={d.explore.categories}>
-        <ul
-          style={{
-            display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-            listStyle: 'none',
-            padding: 0,
-            margin: '0 0 16px',
-          }}
-        >
-          {tab(undefined, d.explore.all)}
-          {CATEGORIES.map((c) => tab(c, d.explore[c]))}
-        </ul>
-      </nav>
-      {res.kind === 'ok' && res.data.length > 0 ? (
-        <>
-          <p className="muted tabular">
-            {t(d.explore.count, { n: formatNumber(res.total ?? res.data.length, locale) })}
-          </p>
-          <OpportunityRows items={res.data} locale={locale} dict={d} now={new Date()} />
-        </>
-      ) : res.kind === 'unavailable' ? (
-        <ErrorState dict={d} />
-      ) : (
-        <EmptyState title={d.explore.emptyTitle} text={d.explore.emptyText} />
-      )}
+      <div className="explore">
+        <aside>
+          <details className="filters" open>
+            <summary>
+              <Icon name="sliders" /> {d.explore.filters}
+            </summary>
+            <div className="filters-body" style={{ marginTop: 12 }}>
+              <h3 style={{ fontSize: '0.9375rem' }}>{d.explore.categories}</h3>
+              <ul className="cat-list">
+                <li>
+                  <Link href={href({ category: undefined })} aria-current={!category}>
+                    <span>{d.explore.all}</span>
+                    <span className="muted tabular">
+                      {cats.kind === 'ok' ? nf(cats.data.reduce((n, c) => n + c.count, 0)) : ''}
+                    </span>
+                  </Link>
+                </li>
+                {cats.kind === 'ok'
+                  ? cats.data.map((c) => (
+                      <li key={c.slug}>
+                        <Link href={href({ category: c.slug })} aria-current={c.slug === category}>
+                          <span>{c.name}</span>
+                          <span className="muted tabular">{nf(c.count)}</span>
+                        </Link>
+                      </li>
+                    ))
+                  : null}
+              </ul>
+              <form method="get" action={`/${locale}/opportunities`}>
+                {category ? <input type="hidden" name="category" value={category} /> : null}
+                <div className="field">
+                  <label htmlFor="location">{d.explore.location}</label>
+                  <select
+                    id="location"
+                    name="location"
+                    className="input"
+                    defaultValue={location ?? ''}
+                  >
+                    <option value="">{d.explore.allLocations}</option>
+                    {locs.kind === 'ok'
+                      ? locs.data.map((l) => (
+                          <option key={l.id} value={l.slug}>
+                            {l.name}
+                          </option>
+                        ))
+                      : null}
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="sort">{d.explore.sort}</label>
+                  <select id="sort" name="sort" className="input" defaultValue={sort}>
+                    <option value="deadline">{d.explore.sortDeadline}</option>
+                    <option value="newest">{d.explore.sortNewest}</option>
+                  </select>
+                </div>
+                <div className="row-flex">
+                  <button className="btn sm" type="submit">
+                    {d.explore.applyFilters}
+                  </button>
+                  {filtered ? (
+                    <Link className="btn ghost sm" href={`/${locale}/opportunities`}>
+                      {d.explore.clearFilters}
+                    </Link>
+                  ) : null}
+                </div>
+              </form>
+            </div>
+          </details>
+        </aside>
+
+        <section aria-live="polite">
+          {list.kind === 'ok' && list.data.length > 0 ? (
+            <>
+              <p className="muted tabular">{t(d.explore.count, { n: nf(total) })}</p>
+              <OpportunityList
+                items={list.data}
+                locale={locale}
+                dict={d}
+                now={new Date()}
+                savedIds={savedIds}
+                nextPath={`/${locale}/opportunities`}
+              />
+              <Pagination
+                prevHref={page > 1 ? href({ page: String(page - 1) }) : undefined}
+                nextHref={page < pages ? href({ page: String(page + 1) }) : undefined}
+                label={`${t(d.explore.page, { n: nf(page) })} / ${nf(pages)}`}
+                dict={d}
+              />
+            </>
+          ) : list.kind === 'unavailable' ? (
+            <ErrorState dict={d} />
+          ) : filtered ? (
+            <EmptyState icon="search" title={d.explore.noMatchTitle} text={d.explore.noMatchText} />
+          ) : (
+            <EmptyState title={d.explore.emptyTitle} text={d.explore.emptyText} />
+          )}
+        </section>
+      </div>
     </Page>
   );
 }

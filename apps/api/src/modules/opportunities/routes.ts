@@ -12,6 +12,11 @@ const listQuery = z.object({
     .string()
     .regex(/^[a-z0-9-]{1,100}$/)
     .optional(),
+  location: z
+    .string()
+    .regex(/^[a-z0-9-]{1,120}$/)
+    .optional(),
+  sort: z.enum(['deadline', 'newest']).default('deadline'),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
 });
@@ -52,6 +57,26 @@ export function registerOpportunities(
       const q = searchQuery.parse(req.query);
       const { items, total } = await repo.list({ ...q, now: clock.now() });
       return { data: items, meta: { total, limit: q.limit, offset: q.offset } };
+    },
+  });
+
+  route(app, guard, {
+    method: 'GET',
+    url: '/api/v1/categories',
+    access: 'public',
+    handler: async (req) => {
+      const { locale } = localeQuery.parse(req.query);
+      return { data: await repo.categories(locale, clock.now()) };
+    },
+  });
+
+  route(app, guard, {
+    method: 'GET',
+    url: '/api/v1/locations',
+    access: 'public',
+    handler: async (req) => {
+      const { locale } = localeQuery.parse(req.query);
+      return { data: await repo.locations(locale) };
     },
   });
 

@@ -45,6 +45,14 @@ export const envSchema = z
     EMAIL_PROVIDER: z.enum(['resend', 'ses', 'log']).default('log'),
     EMAIL_DAILY_CAP: z.coerce.number().int().min(0).default(80),
     EMAIL_RESERVED_SECURITY_PCT: z.coerce.number().int().min(0).max(100).default(60),
+    /**
+     * When false, new accounts are marked verified at registration (staging only, while no email provider exists).
+     * Production must keep it true (plan 5 Module F2, S-7).
+     */
+    EMAIL_VERIFICATION_REQUIRED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((v) => v === 'true'),
     /** Runtime database user (DML only). mysql://user:pass@host:port/db */
     DATABASE_URL: z.string().url().optional(),
     /** TLS is required for TiDB Cloud; off only for the local container. */
@@ -73,6 +81,13 @@ export const envSchema = z
         code: 'custom',
         path: ['AI_PROVIDER'],
         message: 'The mock AI provider cannot run in production',
+      });
+    }
+    if (env.APP_ENV === 'production' && !env.EMAIL_VERIFICATION_REQUIRED) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['EMAIL_VERIFICATION_REQUIRED'],
+        message: 'Email verification cannot be disabled in production',
       });
     }
     if (env.APP_ENV !== 'local' && !env.DATABASE_URL) {
@@ -152,4 +167,16 @@ export function loadSeedConfig(
   env: Record<string, string | undefined> = process.env,
 ): MigrationConfig & { allowDemo: boolean } {
   return { ...loadMigrationConfig(env), allowDemo: env.ALLOW_DEMO_SEED === 'true' };
+}
+
+/** First staff account: read from the environment by `pnpm --filter @c2a/api create-admin` (never logged). */
+export function loadAdminConfig(
+  env: Record<string, string | undefined> = process.env,
+): MigrationConfig & { email: string; password: string } {
+  const base = loadMigrationConfig(env);
+  const email = env.ADMIN_EMAIL?.trim() ?? '';
+  const password = env.ADMIN_PASSWORD ?? '';
+  if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw new Error('Set ADMIN_EMAIL to a valid address');
+  if ([...password].length < 12) throw new Error('ADMIN_PASSWORD must be at least 12 characters');
+  return { ...base, email, password };
 }

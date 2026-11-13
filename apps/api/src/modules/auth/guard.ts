@@ -9,6 +9,7 @@ export type Access =
   | 'public'
   | 'authenticated' // signed-in, active account
   | 'deletion_cancel' // signed-in, active or pending deletion (DEL-02 restricted scope)
+  | 'pending_mfa' // signed in with a password; second factor still to come (staff)
   | Permission;
 
 export interface AuthContext {
@@ -20,6 +21,10 @@ export interface AuthContext {
   email: string;
   locale: 'bn' | 'en';
   emailVerified: boolean;
+  /** has any staff role (everything except plain `user`) */
+  staff: boolean;
+  mfaVerified: boolean;
+  mfaEnrolled: boolean;
 }
 
 declare module 'fastify' {
@@ -64,7 +69,11 @@ export function guard(access: Access, opts: GuardOptions) {
     if (!auth) throw new AppError('UNAUTHENTICATED', 'Please sign in.');
     if (auth.status === 'suspended')
       throw new AppError('ACCOUNT_SUSPENDED', 'This account is suspended.');
-    if (access === 'deletion_cancel') return;
+    if (access === 'deletion_cancel' || access === 'pending_mfa') return;
+    // AUTH-MFA-01: a staff session works only after the second factor.
+    if (auth.staff && !auth.mfaVerified) {
+      throw new AppError('MFA_REQUIRED', 'Two-factor authentication is required.');
+    }
     if (auth.status === 'pending_deletion') {
       throw new AppError('ACCOUNT_PENDING_DELETION', 'This account is scheduled for deletion.');
     }

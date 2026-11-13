@@ -3,6 +3,8 @@ import { createDb } from './db/pool';
 import { databaseCheck } from './db/readiness';
 import { AuthRepo } from './modules/auth/repo';
 import { LogMailer } from './modules/email/mailer';
+import { AdminRepo } from './modules/admin/repo';
+import { MeRepo } from './modules/me/repo';
 import { OpportunityRepo } from './modules/opportunities/repo';
 import { loadConfig } from './platform/config';
 
@@ -21,6 +23,8 @@ async function main(): Promise<void> {
     ...(db
       ? {
           opportunities: { repo: new OpportunityRepo(db) },
+          me: { repo: new MeRepo(db) },
+          admin: { repo: new AdminRepo(db) },
           auth: {
             repo: new AuthRepo(db),
             mailer: new LogMailer((o, m) => console.warn(m, JSON.stringify(o))),

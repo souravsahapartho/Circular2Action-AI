@@ -1,10 +1,21 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
-import { DeadlineChip, EmptyState, ErrorState } from '@/components/states';
-import { isLocale } from '@/i18n/config';
+import { SaveButton } from '@/components/save-button';
+import { TrackButton } from '@/components/track-button';
+import {
+  Alert,
+  Badge,
+  Breadcrumbs,
+  DeadlineChip,
+  EmptyState,
+  ErrorState,
+  Icon,
+} from '@/components/ui';
+import { formatNumber, isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
-import { apiGet, idFromSlug, type OpportunityDetail } from '@/lib/api';
+import { apiGet, idFromSlug, safeHref, type OpportunityDetail } from '@/lib/api';
+import { getMe } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,81 +28,203 @@ export default async function Detail({
   if (!isLocale(locale)) notFound();
   const d = getDictionary(locale);
   const id = idFromSlug(slug);
-  const res = id
-    ? await apiGet<OpportunityDetail>(`/api/v1/opportunities/${id}?locale=${locale}`)
-    : ({ kind: 'not_found' } as const);
+  const me = await getMe();
+  const [res, savedIds, apps] = await Promise.all([
+    id
+      ? apiGet<OpportunityDetail>(`/api/v1/opportunities/${id}?locale=${locale}`)
+      : Promise.resolve({ kind: 'not_found' } as const),
+    me ? apiGet<string[]>('/api/v1/me/saved-ids', { auth: true }) : Promise.resolve(null),
+    me
+      ? apiGet<Array<{ id: string; opportunity_id: string | null }>>('/api/v1/me/applications', {
+          auth: true,
+        })
+      : Promise.resolve(null),
+  ]);
+  const path = `/opportunities/${slug}`;
+  const trackedId =
+    apps && apps.kind === 'ok'
+      ? (apps.data.find((a) => a.opportunity_id === id)?.id ?? null)
+      : null;
+  const isSaved = Boolean(
+    me && savedIds && savedIds.kind === 'ok' && id && savedIds.data.includes(id),
+  );
+
+  if (res.kind !== 'ok') {
+    return (
+      <Page locale={locale} dict={d} section="explore" path={path} me={me}>
+        {res.kind === 'not_found' ? (
+          <EmptyState
+            icon="search"
+            title={d.detail.notFound}
+            text={d.explore.emptyText}
+            action={
+              <Link className="btn" href={`/${locale}/opportunities`}>
+                {d.nav.explore}
+              </Link>
+            }
+          />
+        ) : (
+          <ErrorState dict={d} />
+        )}
+      </Page>
+    );
+  }
+
+  const o = res.data;
+  const sample = o.title.startsWith('[');
+  const official = safeHref(o.source_url);
+  const apply = safeHref(o.application_url);
+  const now = new Date();
   return (
-    <Page locale={locale} dict={d} section="explore" path={`/opportunities/${slug}`}>
-      {res.kind === 'ok' ? (
+    <Page locale={locale} dict={d} section="explore" path={path} me={me}>
+      <Breadcrumbs
+        items={[
+          { href: `/${locale}`, label: d.nav.home },
+          { href: `/${locale}/opportunities`, label: d.nav.explore },
+          ...(o.category_slug
+            ? [
+                {
+                  href: `/${locale}/opportunities?category=${o.category_slug}`,
+                  label: o.category ?? '',
+                },
+              ]
+            : []),
+          { label: o.title },
+        ]}
+      />
+      <div className="detail">
         <article>
-          <h1>{res.data.title}</h1>
-          <p className="muted">{res.data.organization}</p>
-          {res.data.title.startsWith('[') ? (
-            <p className="state" role="note" style={{ padding: 12 }}>
+          <div className="row-flex" style={{ marginBottom: 8 }}>
+            {o.category ? <Badge>{o.category}</Badge> : null}
+            {o.verified ? (
+              <Badge tone="success">
+                <Icon name="shield" size="sm" /> {d.detail.verified}
+              </Badge>
+            ) : (
+              <Badge tone="warn">{d.detail.unverified}</Badge>
+            )}
+          </div>
+          <h1>{o.title}</h1>
+          <p className="muted row-flex" style={{ gap: 6 }}>
+            <Icon name="building" /> {o.organization}
+          </p>
+          {sample ? (
+            <Alert kind="warn" role="note">
               {d.detail.sampleNotice}
-            </p>
+            </Alert>
           ) : null}
-          {res.data.verified ? <p>✓ {d.detail.verified}</p> : null}
-          <h2>{d.detail.facts}</h2>
-          <dl>
-            {res.data.deadline_at ? (
-              <>
-                <dt>{d.explore.deadline}</dt>
+
+          <dl className="facts" style={{ margin: '16px 0 8px' }}>
+            {o.deadline_at ? (
+              <div>
+                <dt>{d.detail.deadline}</dt>
                 <dd>
-                  <DeadlineChip
-                    iso={res.data.deadline_at}
-                    locale={locale}
-                    dict={d}
-                    now={new Date()}
-                  />
+                  <DeadlineChip iso={o.deadline_at} locale={locale} dict={d} now={now} />
                 </dd>
-              </>
+              </div>
             ) : null}
-            {res.data.location ? (
-              <>
+            {o.location ? (
+              <div>
                 <dt>{d.explore.location}</dt>
-                <dd>{res.data.location}</dd>
-              </>
+                <dd>{o.location}</dd>
+              </div>
             ) : null}
-            {res.data.vacancies ? (
-              <>
+            {o.vacancies ? (
+              <div>
                 <dt>{d.detail.vacancies}</dt>
-                <dd className="tabular">{res.data.vacancies}</dd>
-              </>
+                <dd className="tabular">{formatNumber(o.vacancies, locale)}</dd>
+              </div>
+            ) : null}
+            {o.category ? (
+              <div>
+                <dt>{d.explore.category}</dt>
+                <dd>{o.category}</dd>
+              </div>
             ) : null}
           </dl>
-          {res.data.summary ? <p style={{ maxWidth: '70ch' }}>{res.data.summary}</p> : null}
+
+          {o.summary ? (
+            <>
+              <h2>{d.detail.summary}</h2>
+              <p style={{ maxWidth: '70ch' }}>{o.summary}</p>
+            </>
+          ) : null}
+
           <h2>{d.detail.requirements}</h2>
-          {res.data.requirements && res.data.requirements.length > 0 ? (
-            <ul className="rows">
-              {res.data.requirements.map((r) => (
-                <li key={r.id} className="row" style={{ gridTemplateColumns: '1fr 140px' }}>
+          {o.requirements && o.requirements.length > 0 ? (
+            <ul className="req-list">
+              {o.requirements.map((r) => (
+                <li key={r.id}>
                   <span>{r.text ?? r.rule_type}</span>
-                  <span className="muted">
+                  <Badge tone={r.necessity === 'mandatory' ? 'neutral' : 'info'}>
                     {r.necessity === 'mandatory' ? d.detail.mandatory : d.detail.preferred}
-                  </span>
+                  </Badge>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="muted">{d.detail.noRequirements}</p>
           )}
-          <p style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 24 }}>
-            <Link className="btn" href={`/${locale}/opportunities/${slug}/eligibility`}>
-              {d.detail.checkEligibility}
+
+          {o.how_to_apply ? (
+            <>
+              <h2>{d.detail.apply}</h2>
+              <p style={{ maxWidth: '70ch', whiteSpace: 'pre-line' }}>{o.how_to_apply}</p>
+            </>
+          ) : null}
+        </article>
+
+        <aside className="aside-sticky">
+          <div className="card stack">
+            <h2 style={{ fontSize: '1.0625rem', margin: 0 }}>{d.detail.actions}</h2>
+            <Link className="btn block" href={`/${locale}/opportunities/${slug}/eligibility`}>
+              <Icon name="check" /> {d.detail.checkEligibility}
             </Link>
-            {res.data.source_url ? (
-              <a className="btn secondary" href={res.data.source_url} rel="noopener nofollow">
-                {d.detail.official}
+            <TrackButton
+              opportunityId={o.id}
+              signedIn={me !== null}
+              locale={locale}
+              nextPath={`/${locale}${path}`}
+              initialTrackedId={trackedId}
+              labels={{
+                track: d.detail.track,
+                tracking: d.detail.tracking,
+                signIn: d.detail.signInToSave,
+              }}
+              errors={d.errors}
+            />
+            <SaveButton
+              opportunityId={o.id}
+              initialSaved={isSaved}
+              signedIn={me !== null}
+              locale={locale}
+              nextPath={`/${locale}${path}`}
+              labels={{ save: d.detail.save, saved: d.detail.saved, signIn: d.detail.signInToSave }}
+              variant="button"
+            />
+            {apply ? (
+              <a
+                className="btn secondary block"
+                href={apply}
+                rel="noopener nofollow"
+                target="_blank"
+              >
+                <Icon name="external" /> {d.detail.applyLink}
               </a>
             ) : null}
-          </p>
-        </article>
-      ) : res.kind === 'not_found' ? (
-        <EmptyState title={d.detail.notFound} text={d.explore.emptyText} />
-      ) : (
-        <ErrorState dict={d} />
-      )}
+            {official ? (
+              <a
+                className="btn ghost block"
+                href={official}
+                rel="noopener nofollow"
+                target="_blank"
+              >
+                <Icon name="file" /> {d.detail.official}
+              </a>
+            ) : null}
+          </div>
+        </aside>
+      </div>
     </Page>
   );
 }

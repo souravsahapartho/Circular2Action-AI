@@ -18,6 +18,15 @@ import {
   verifyPassword,
 } from './crypto';
 import { issueCsrf } from './csrf';
+import {
+  decryptSecret,
+  encryptSecret,
+  newRecoveryCodes,
+  newTotpSecret,
+  normalizeRecoveryCode,
+  otpauthUri,
+  verifyTotp,
+} from './totp';
 import { route, type AuthContext, type GuardOptions } from './guard';
 import type { AuthRepo } from './repo';
 
@@ -31,6 +40,9 @@ const SESSION_TOUCH_MS = 3_600_000; // slide the idle expiry at most once an hou
 const VERIFY_TTL_MS = DAY;
 const RESET_TTL_MS = 30 * 60_000;
 export const DELETION_GRACE_MS = 7 * DAY;
+/** Staff sessions (plan 9.9): idle 30 minutes, absolute 12 hours. */
+export const STAFF_IDLE_MS = 30 * 60_000;
+export const STAFF_ABSOLUTE_MS = 12 * 3_600_000;
 
 export interface AuthDeps {
   repo: AuthRepo;
@@ -41,6 +53,8 @@ export interface AuthDeps {
   webOriginsExtra?: readonly string[];
   /** First internal secret; sub-keys are derived per use. */
   secret: string;
+  /** false only on staging without an email provider: accounts are verified at registration */
+  emailVerificationRequired?: boolean;
 }
 
 const email = z.string().trim().email().max(254);
@@ -129,9 +143,14 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
     }
     const user = await repo.findUserById(s.user_id);
     if (!user) return;
-    if (now.getTime() - s.last_seen_at.getTime() > SESSION_TOUCH_MS) {
+    const roles = await repo.roles(user.id);
+    const staff = roles.some((r) => r !== 'user');
+    if (now.getTime() - s.last_seen_at.getTime() > (staff ? 60_000 : SESSION_TOUCH_MS)) {
       const idle = new Date(
-        Math.min(now.getTime() + SESSION_IDLE_MS, s.absolute_expires_at.getTime()),
+        Math.min(
+          now.getTime() + (staff ? STAFF_IDLE_MS : SESSION_IDLE_MS),
+          s.absolute_expires_at.getTime(),
+        ),
       );
       await repo.extendSession(s.id, now, idle);
     }
@@ -139,7 +158,10 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
       userId: user.id,
       sessionId: s.id,
       tokenHash: th,
-      roles: await repo.roles(user.id),
+      roles,
+      staff,
+      mfaVerified: s.mfa_verified_at !== null,
+      mfaEnrolled: user.totp_confirmed_at !== null,
       status: user.status,
       email: user.email,
       locale: user.locale,
@@ -175,23 +197,25 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
     req: FastifyRequest,
     reply: FastifyReply,
     userId: string,
+    staff = false,
   ): Promise<string> => {
     const token = newToken();
     const now = clock.now();
+    const absoluteMs = staff ? STAFF_ABSOLUTE_MS : SESSION_ABSOLUTE_MS;
     await repo.createSession(userId, {
       tokenHash: sha256(token),
       userAgent: (req.headers['user-agent'] as string | undefined) ?? null,
       ipHash: hmac(ipKey, req.ip),
       now,
-      idleMs: SESSION_IDLE_MS,
-      absoluteMs: SESSION_ABSOLUTE_MS,
+      idleMs: staff ? STAFF_IDLE_MS : SESSION_IDLE_MS,
+      absoluteMs,
     });
     const csrf = issueCsrf(csrfKey);
     void reply.header('set-cookie', [
       serializeCookie(cookies.session, token, {
         secure: cookies.secure,
         httpOnly: true,
-        maxAgeSeconds: SESSION_ABSOLUTE_MS / 1000,
+        maxAgeSeconds: absoluteMs / 1000,
       }),
       serializeCookie(cookies.csrf, csrf, { secure: cookies.secure, httpOnly: false }),
     ]);
@@ -234,6 +258,9 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
       status: user.status,
       email_verified: user.email_verified_at !== null,
       roles: a.roles,
+      staff: a.staff,
+      mfa_verified: a.mfaVerified,
+      mfa_enrolled: a.mfaEnrolled,
     };
   };
 
@@ -273,7 +300,12 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
         ],
       });
       if (created) {
-        await sendVerification(created.id, b.email.trim(), b.locale);
+        if (deps.emailVerificationRequired === false) {
+          // Staging without an email provider: the account is usable immediately (never allowed in production).
+          await repo.markEmailVerified(created.id, now);
+        } else {
+          await sendVerification(created.id, b.email.trim(), b.locale);
+        }
       } else {
         // Same response either way (no account enumeration); the owner is told someone tried.
         const existing = await repo.findUserByEmail(en);
@@ -286,9 +318,15 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
           });
         }
       }
-      return reply
-        .status(202)
-        .send({ data: { message: 'If the address can be used, we sent a verification email.' } });
+      return reply.status(202).send({
+        data: {
+          message:
+            deps.emailVerificationRequired === false
+              ? 'If the address can be used, the account is ready. You can sign in.'
+              : 'If the address can be used, we sent a verification email.',
+          email_verification_required: deps.emailVerificationRequired !== false,
+        },
+      });
     },
   });
 
@@ -348,20 +386,106 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
       if (!user.email_verified_at)
         throw new AppError('EMAIL_NOT_VERIFIED', 'Please verify your email first.');
       const roles = await repo.roles(user.id);
-      // Staff accounts need TOTP (AUTH-MFA-01); not built yet, so staff cannot sign in at all (deny by default).
-      if (roles.some((r) => r !== 'user')) {
-        throw new AppError('MFA_REQUIRED', 'Staff sign-in requires two-factor authentication.');
-      }
+      const staff = roles.some((r) => r !== 'user');
       if (needsRehash(user.password_hash))
         await repo.setPasswordHash(user.id, await hashPassword(b.password));
       await repo.touchLogin(user.id, clock.now());
-      const csrf = await startSession(req, reply, user.id);
+      // Staff get a session that only reaches the MFA endpoints until the second factor is verified (AUTH-MFA-01).
+      const csrf = await startSession(req, reply, user.id, staff);
+      const totp = staff ? await repo.getTotp(user.id) : null;
       return {
         data: {
           user: { id: user.id, display_name: user.display_name, status: user.status },
           csrf_token: csrf,
+          mfa_required: staff,
+          mfa_enrolled: totp ? totp.confirmedAt !== null : false,
         },
       };
+    },
+  });
+
+  route(app, g, {
+    method: 'GET',
+    url: '/api/v1/auth/config',
+    access: 'public',
+    handler: async () => ({
+      data: { email_verification_required: deps.emailVerificationRequired !== false },
+    }),
+  });
+
+  // ---- staff two-factor (AUTH-MFA-01..04) ----
+  const mfaLimiter = new RateLimiter(LIMITS.login);
+  const spendCode = async (a: AuthContext, input: { code?: string; recovery_code?: string }) => {
+    limit(mfaLimiter, `mfa:${a.userId}`);
+    const t = await repo.getTotp(a.userId);
+    if (!t.enc || !t.confirmedAt) throw new AppError('CONFLICT', 'Two-factor is not set up yet.');
+    if (input.code) {
+      return verifyTotp(decryptSecret(deps.secret, t.enc), input.code, clock.now().getTime());
+    }
+    if (input.recovery_code) {
+      return repo.spendRecoveryCode(
+        a.userId,
+        sha256(normalizeRecoveryCode(input.recovery_code)),
+        clock.now(),
+      );
+    }
+    return false;
+  };
+
+  route(app, g, {
+    method: 'POST',
+    url: '/api/v1/auth/mfa/enroll',
+    access: 'pending_mfa',
+    handler: async (req) => {
+      const a = req.auth!;
+      if (!a.staff) throw new AppError('FORBIDDEN', 'Two-factor is for staff accounts.');
+      if (a.mfaEnrolled) throw new AppError('CONFLICT', 'Two-factor is already set up.');
+      const secret = newTotpSecret();
+      await repo.setPendingTotp(a.userId, encryptSecret(deps.secret, secret));
+      return { data: { secret, otpauth_uri: otpauthUri(secret, a.email) } };
+    },
+  });
+
+  route(app, g, {
+    method: 'POST',
+    url: '/api/v1/auth/mfa/confirm',
+    access: 'pending_mfa',
+    handler: async (req) => {
+      const a = req.auth!;
+      if (!a.staff || a.mfaEnrolled) throw new AppError('CONFLICT', 'Nothing to confirm.');
+      limit(mfaLimiter, `mfa:${a.userId}`);
+      const { code } = z.object({ code: z.string().regex(/^\d{6}$/) }).parse(json(req));
+      const t = await repo.getTotp(a.userId);
+      if (!t.enc) throw new AppError('CONFLICT', 'Start enrolment first.');
+      if (!verifyTotp(decryptSecret(deps.secret, t.enc), code, clock.now().getTime())) {
+        throw new AppError('INVALID_CREDENTIALS', 'That code is not correct.');
+      }
+      const codes = newRecoveryCodes(10);
+      await repo.confirmTotp(
+        a.userId,
+        clock.now(),
+        codes.map((c) => sha256(normalizeRecoveryCode(c))),
+      );
+      await repo.markSessionMfa(a.sessionId, clock.now());
+      return { data: { recovery_codes: codes } }; // shown once (AUTH-MFA-02)
+    },
+  });
+
+  route(app, g, {
+    method: 'POST',
+    url: '/api/v1/auth/mfa/verify',
+    access: 'pending_mfa',
+    handler: async (req) => {
+      const a = req.auth!;
+      if (!a.staff || !a.mfaEnrolled) throw new AppError('CONFLICT', 'Two-factor is not set up.');
+      const b = z
+        .object({ code: z.string().optional(), recovery_code: z.string().optional() })
+        .parse(json(req));
+      if (!(await spendCode(a, b))) {
+        throw new AppError('INVALID_CREDENTIALS', 'That code is not correct.');
+      }
+      await repo.markSessionMfa(a.sessionId, clock.now());
+      return { data: { recovery_codes_left: await repo.recoveryCodesLeft(a.userId) } };
     },
   });
 

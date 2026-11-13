@@ -3,10 +3,14 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { DELETION_REGISTRY, PSEUDONYMOUS_COLUMNS } from '../src/modules/privacy/registry';
 
-const migration = fs.readFileSync(
-  path.resolve(import.meta.dirname, '..', 'migrations', '0001_init.sql'),
-  'utf8',
-);
+// Every migration file counts: a table added later (such as mfa_recovery_codes) must be in the registry too.
+const migrationsDir = path.resolve(import.meta.dirname, '..', 'migrations');
+const migration = fs
+  .readdirSync(migrationsDir)
+  .filter((f) => /^\d{4}_.+\.sql$/.test(f))
+  .sort()
+  .map((f) => fs.readFileSync(path.join(migrationsDir, f), 'utf8'))
+  .join(String.fromCharCode(10));
 
 /** Every column in the schema that can reference a user (plan DEL-04). */
 function userReferencingColumns(): string[] {

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { EligibilityStatus } from '@c2a/eligibility';
 import { Page } from '@/components/chrome';
-import { DeadlineChip, StatusBadge } from '@/components/states';
+import { Alert, Badge, DeadlineChip, Icon, StatusBadge } from '@/components/ui';
 import { isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
 
@@ -46,28 +46,43 @@ export default async function Design({ params }: { params: Promise<{ locale: str
         )),
       )}
       <h2>Eligibility statuses</h2>
-      <p style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <p className="row-flex">
         {STATUSES.map((s) => (
-          <StatusBadge key={s} status={s} dict={d} />
+          <StatusBadge key={s} status={s} label={d.eligibility[s]} />
         ))}
       </p>
-      <h2>Deadline chips</h2>
-      <p style={{ display: 'grid', gap: 8 }}>
+      <h2>Badges, deadline chips and alerts</h2>
+      <p className="row-flex">
+        <Badge>Brand</Badge>
+        <Badge tone="success">Success</Badge>
+        <Badge tone="warn">Warning</Badge>
+        <Badge tone="danger">Danger</Badge>
+        <Badge tone="info">Info</Badge>
         <DeadlineChip iso="2026-11-20T23:59:00+06:00" locale={locale} dict={d} now={now} />
         <DeadlineChip iso="2026-11-13T23:59:00+06:00" locale={locale} dict={d} now={now} />
         <DeadlineChip iso="2026-11-01T23:59:00+06:00" locale={locale} dict={d} now={now} />
       </p>
+      <Alert kind="info">Information message</Alert>
+      <Alert kind="success">Success message</Alert>
+      <Alert kind="warn">Warning message</Alert>
+      <Alert kind="error">Error message</Alert>
       <h2>Buttons and inputs</h2>
-      <p style={{ display: 'flex', gap: 8 }}>
+      <p className="row-flex">
         <button className="btn" type="button">
-          {d.home.searchButton}
+          <Icon name="search" /> {d.home.searchButton}
         </button>
         <button className="btn secondary" type="button">
           {d.states.retry}
         </button>
+        <button className="btn ghost" type="button">
+          {d.common.cancel}
+        </button>
+        <button className="btn danger" type="button">
+          {d.common.delete}
+        </button>
       </p>
       <div className="field" style={{ maxWidth: 420 }}>
-        <label htmlFor="sample">{d.signIn.email}</label>
+        <label htmlFor="sample">{d.auth.email}</label>
         <input id="sample" className="input" />
       </div>
     </Page>

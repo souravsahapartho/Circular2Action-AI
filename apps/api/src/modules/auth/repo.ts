@@ -13,6 +13,7 @@ export interface UserRow {
   locale: 'bn' | 'en';
   email_verified_at: Date | null;
   consent_subject_ref: Buffer;
+  totp_confirmed_at: Date | null;
 }
 
 export interface SessionRow {
@@ -21,6 +22,7 @@ export interface SessionRow {
   last_seen_at: Date;
   expires_at: Date;
   absolute_expires_at: Date;
+  mfa_verified_at: Date | null;
 }
 
 export class AuthRepo {
@@ -32,7 +34,7 @@ export class AuthRepo {
 
   async findUserByEmail(emailNormalized: string): Promise<UserRow | null> {
     const rows = await this.db.query<Row & UserRow>(
-      `SELECT id, email, display_name, password_hash, status, locale, email_verified_at, consent_subject_ref
+      `SELECT id, email, display_name, password_hash, status, locale, email_verified_at, consent_subject_ref, totp_confirmed_at
        FROM users WHERE email_normalized = :e`,
       { e: emailNormalized },
     );
@@ -41,7 +43,7 @@ export class AuthRepo {
 
   async findUserById(userId: string): Promise<UserRow | null> {
     const rows = await this.db.query<Row & UserRow>(
-      `SELECT id, email, display_name, password_hash, status, locale, email_verified_at, consent_subject_ref
+      `SELECT id, email, display_name, password_hash, status, locale, email_verified_at, consent_subject_ref, totp_confirmed_at
        FROM users WHERE id = :id`,
       { id: userId },
     );
@@ -151,7 +153,7 @@ export class AuthRepo {
 
   async findSession(tokenHash: Buffer): Promise<SessionRow | null> {
     const rows = await this.db.query<Row & SessionRow>(
-      `SELECT id, user_id, last_seen_at, expires_at, absolute_expires_at FROM user_sessions WHERE token_hash = :th`,
+      `SELECT id, user_id, last_seen_at, expires_at, absolute_expires_at, mfa_verified_at FROM user_sessions WHERE token_hash = :th`,
       { th: tokenHash },
     );
     const r = rows[0];
@@ -272,6 +274,69 @@ export class AuthRepo {
         now: e.now,
       },
     );
+  }
+
+  // --- staff MFA (AUTH-MFA-01..04) ---
+
+  async getTotp(userId: string): Promise<{ enc: Buffer | null; confirmedAt: Date | null }> {
+    const rows = await this.db.query<
+      Row & { totp_secret_enc: Buffer | null; totp_confirmed_at: Date | null }
+    >('SELECT totp_secret_enc, totp_confirmed_at FROM users WHERE id = :id', { id: userId });
+    return {
+      enc: rows[0]?.totp_secret_enc ?? null,
+      confirmedAt: rows[0]?.totp_confirmed_at ?? null,
+    };
+  }
+
+  /** Stores an unconfirmed secret (replaces an earlier unconfirmed one; never replaces a confirmed one). */
+  async setPendingTotp(userId: string, enc: Buffer): Promise<boolean> {
+    const res = await this.db.execute(
+      'UPDATE users SET totp_secret_enc = :enc WHERE id = :id AND totp_confirmed_at IS NULL',
+      { id: userId, enc },
+    );
+    return res.affectedRows === 1;
+  }
+
+  /** Confirms enrolment and stores the hashed recovery codes in one transaction. */
+  async confirmTotp(userId: string, now: Date, codeHashes: Buffer[]): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.execute('UPDATE users SET totp_confirmed_at = :now WHERE id = :id', {
+        id: userId,
+        now,
+      });
+      await tx.execute('DELETE FROM mfa_recovery_codes WHERE user_id = :id', { id: userId });
+      for (const h of codeHashes) {
+        await tx.execute('INSERT INTO mfa_recovery_codes (user_id, code_hash) VALUES (:id, :h)', {
+          id: userId,
+          h,
+        });
+      }
+    });
+  }
+
+  async markSessionMfa(sessionId: string, now: Date): Promise<void> {
+    await this.db.execute('UPDATE user_sessions SET mfa_verified_at = :now WHERE id = :id', {
+      id: sessionId,
+      now,
+    });
+  }
+
+  /** Atomically spends one recovery code; false when unknown or already used. */
+  async spendRecoveryCode(userId: string, codeHash: Buffer, now: Date): Promise<boolean> {
+    const res = await this.db.execute(
+      `UPDATE mfa_recovery_codes SET used_at = :now
+       WHERE user_id = :id AND code_hash = :h AND used_at IS NULL`,
+      { id: userId, h: codeHash, now },
+    );
+    return res.affectedRows === 1;
+  }
+
+  async recoveryCodesLeft(userId: string): Promise<number> {
+    const [r] = await this.db.query<Row & { n: number }>(
+      'SELECT COUNT(*) n FROM mfa_recovery_codes WHERE user_id = :id AND used_at IS NULL',
+      { id: userId },
+    );
+    return Number(r!.n);
   }
 
   // --- deletion ---

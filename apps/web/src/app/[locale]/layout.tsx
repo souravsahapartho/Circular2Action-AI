@@ -1,31 +1,15 @@
-import type { Metadata } from 'next';
-import { Anek_Bangla, Anek_Latin, Noto_Sans_Bengali } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
 import { notFound } from 'next/navigation';
 import { isLocale, LOCALES } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
+import { fontClasses } from '@/lib/fonts';
 import '../globals.css';
-
-// Anek Bangla is the planned body font; Noto Sans Bengali is the DS-1 fallback until the legibility gate decides.
-const anekBangla = Anek_Bangla({
-  subsets: ['bengali', 'latin'],
-  variable: '--font-anek-bangla',
-  display: 'swap',
-});
-const anekLatin = Anek_Latin({
-  subsets: ['latin'],
-  variable: '--font-anek-latin',
-  display: 'swap',
-});
-const notoBengali = Noto_Sans_Bengali({
-  subsets: ['bengali'],
-  variable: '--font-noto-bengali',
-  display: 'swap',
-  preload: false,
-});
 
 export function generateStaticParams() {
   return LOCALES.map((locale) => ({ locale }));
 }
+
+export const viewport: Viewport = { themeColor: '#0b5d5e', width: 'device-width', initialScale: 1 };
 
 export async function generateMetadata({
   params,
@@ -39,6 +23,7 @@ export async function generateMetadata({
     title: { default: d.meta.title, template: `%s · ${d.meta.title}` },
     description: d.meta.description,
     alternates: { languages: { bn: '/bn', en: '/en' } },
+    icons: { icon: '/icon.svg' },
   };
 }
 
@@ -52,10 +37,7 @@ export default async function LocaleLayout({
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   return (
-    <html
-      lang={locale}
-      className={`${anekBangla.variable} ${anekLatin.variable} ${notoBengali.variable}`}
-    >
+    <html lang={locale} className={fontClasses}>
       <body>{children}</body>
     </html>
   );

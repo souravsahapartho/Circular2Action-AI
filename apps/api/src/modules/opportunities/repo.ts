@@ -38,6 +38,8 @@ export interface OpportunityDetail extends OpportunitySummary {
 export interface ListQuery {
   locale: Locale;
   category?: string;
+  location?: string;
+  sort?: 'deadline' | 'newest';
   q?: string;
   limit: number;
   offset: number;
@@ -109,6 +111,12 @@ export class OpportunityRepo {
       where.push('c.slug = :cat');
       params.cat = q.category;
     }
+    if (q.location) {
+      where.push(
+        'EXISTS (SELECT 1 FROM opportunity_locations ol2 JOIN locations l2 ON l2.id = ol2.location_id WHERE ol2.opportunity_id = o.id AND l2.slug = :loc)',
+      );
+      params.loc = q.location;
+    }
     if (q.q !== undefined) {
       const norm = normalizeForMatch(q.q);
       // a query with no letters or digits (only punctuation or symbols) matches nothing
@@ -124,7 +132,7 @@ export class OpportunityRepo {
     const extra = where.length ? ` AND ${where.join(' AND ')}` : '';
     const rows = await this.db.query<ListRow>(
       `${SELECT} ${BASE}${extra}
-       ORDER BY (o.deadline_at IS NULL), o.deadline_at, o.id
+       ORDER BY ${q.sort === 'newest' ? 'o.published_at DESC, o.id DESC' : '(o.deadline_at IS NULL), o.deadline_at, o.id'}
        LIMIT :limit OFFSET :offset`,
       params,
     );
@@ -199,6 +207,68 @@ export class OpportunityRepo {
         text: x.source_text,
       })),
     };
+  }
+
+  /** Summaries for specific ids (saved list), newest save order kept; unpublished ones are skipped. */
+  async summaries(
+    ids: string[],
+    locale: Locale,
+    now: Date,
+  ): Promise<Array<OpportunitySummary & { closed: boolean }>> {
+    if (ids.length === 0) return [];
+    const rows = await this.db.query<ListRow>(
+      `${SELECT}
+       FROM opportunities o
+       JOIN organizations org ON org.id = o.organization_id
+       JOIN opportunity_categories c ON c.id = o.category_id
+       WHERE o.publication_status = 'published' AND o.id IN (:ids)`,
+      { ids },
+    );
+    const byId = new Map(rows.map((r) => [String(r.id), r]));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((r): r is ListRow => r !== undefined)
+      .map((r) => ({
+        ...toSummary(r, locale),
+        closed: r.deadline_at !== null && r.deadline_at <= now,
+      }));
+  }
+
+  async categories(
+    locale: Locale,
+    now: Date,
+  ): Promise<Array<{ slug: string; kind: string; name: string; count: number }>> {
+    const rows = await this.db.query<
+      Row & { slug: string; kind: string; name_en: string; name_bn: string; n: number }
+    >(
+      `SELECT c.slug, c.kind, c.name_en, c.name_bn,
+              (SELECT COUNT(*) FROM opportunities o WHERE o.category_id = c.id AND o.publication_status = 'published'
+                 AND o.lifecycle_status = 'open' AND (o.deadline_at IS NULL OR o.deadline_at > :now)) AS n
+       FROM opportunity_categories c WHERE c.is_active = 1 ORDER BY c.sort_order, c.id`,
+      { now },
+    );
+    return rows.map((r) => ({
+      slug: r.slug,
+      kind: r.kind,
+      name: locale === 'bn' ? r.name_bn : r.name_en,
+      count: Number(r.n),
+    }));
+  }
+
+  async locations(
+    locale: Locale,
+  ): Promise<Array<{ id: string; slug: string; type: string; name: string }>> {
+    const rows = await this.db.query<
+      Row & { id: string; slug: string; type: string; name_en: string; name_bn: string | null }
+    >(
+      `SELECT id, slug, type, name_en, name_bn FROM locations WHERE type <> 'country' ORDER BY name_en`,
+    );
+    return rows.map((r) => ({
+      id: String(r.id),
+      slug: r.slug,
+      type: r.type,
+      name: locale === 'bn' ? (r.name_bn ?? r.name_en) : r.name_en,
+    }));
   }
 
   /** Rebuilds the search row for one opportunity from its source rows. */

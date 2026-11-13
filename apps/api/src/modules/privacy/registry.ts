@@ -29,6 +29,7 @@ export const DELETION_REGISTRY: readonly RegistryEntry[] = [
   del('user_roles'),
   del('user_sessions'),
   del('auth_tokens'),
+  del('mfa_recovery_codes'),
   del('user_profiles'),
   del('education_records'),
   del('work_experiences'),

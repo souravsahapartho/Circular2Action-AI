@@ -9,6 +9,18 @@ import {
   verifyPassword,
 } from '../src/modules/auth/crypto';
 import { issueCsrf, originAllowed, verifyCsrf } from '../src/modules/auth/csrf';
+import {
+  base32Decode,
+  base32Encode,
+  decryptSecret,
+  encryptSecret,
+  newRecoveryCodes,
+  newTotpSecret,
+  normalizeRecoveryCode,
+  otpauthUri,
+  totpAt,
+  verifyTotp,
+} from '../src/modules/auth/totp';
 
 describe('auth crypto', () => {
   it('hashes with Argon2id at the planned parameters and verifies', async () => {
@@ -83,5 +95,57 @@ describe('csrf', () => {
     const both = ['https://c2a-web.vercel.app', 'https://c2a-web-staging.onrender.com'];
     expect(originAllowed('https://c2a-web-staging.onrender.com', both)).toBe(true);
     expect(originAllowed('https://evil.example', both)).toBe(false);
+  });
+});
+
+describe('staff two-factor (TOTP)', () => {
+  // RFC 6238 appendix B: secret "12345678901234567890", SHA-1, T = 59 s -> 94287082 (8 digits)
+  const RFC_SECRET = base32Encode(Buffer.from('12345678901234567890'));
+  it('matches the RFC 6238 test vectors', () => {
+    expect(RFC_SECRET).toBe('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ');
+    expect(totpAt(RFC_SECRET, 59_000, 8)).toBe('94287082');
+    expect(totpAt(RFC_SECRET, 1_111_111_109_000, 8)).toBe('07081804');
+    expect(totpAt(RFC_SECRET, 20_000_000_000_000, 8)).toBe('65353130');
+    expect(totpAt(RFC_SECRET, 59_000)).toBe('287082');
+  });
+
+  it('accepts the current and adjacent steps only, and malformed codes never', () => {
+    const now = 1_700_000_000_000;
+    const code = totpAt(RFC_SECRET, now);
+    expect(verifyTotp(RFC_SECRET, code, now)).toBe(true);
+    expect(verifyTotp(RFC_SECRET, totpAt(RFC_SECRET, now - 30_000), now)).toBe(true);
+    expect(verifyTotp(RFC_SECRET, totpAt(RFC_SECRET, now + 30_000), now)).toBe(true);
+    expect(verifyTotp(RFC_SECRET, totpAt(RFC_SECRET, now - 90_000), now)).toBe(false);
+    for (const bad of ['', '12345', '1234567', 'abcdef', '12 3456']) {
+      expect(verifyTotp(RFC_SECRET, bad, now)).toBe(false);
+    }
+  });
+
+  it('base32 round trips and the setup URI carries the secret and issuer', () => {
+    const s = newTotpSecret();
+    expect(s).toMatch(/^[A-Z2-7]{32}$/);
+    expect(base32Encode(base32Decode(s))).toBe(s);
+    const uri = otpauthUri(s, 'a@b.test');
+    expect(uri).toContain(`secret=${s}`);
+    expect(uri).toContain('issuer=Circular2Action');
+  });
+
+  it('encrypts the secret at rest with AES-256-GCM and rejects tampering or a wrong key', () => {
+    const key = 'k'.repeat(40);
+    const blob = encryptSecret(key, 'JBSWY3DPEHPK3PXP');
+    expect(blob.toString('utf8')).not.toContain('JBSWY3DP');
+    expect(decryptSecret(key, blob)).toBe('JBSWY3DPEHPK3PXP');
+    expect(encryptSecret(key, 'JBSWY3DPEHPK3PXP').equals(blob)).toBe(false); // fresh IV each time
+    expect(() => decryptSecret('x'.repeat(40), blob)).toThrow();
+    const tampered = Buffer.from(blob);
+    tampered[tampered.length - 1] = tampered[tampered.length - 1]! ^ 1;
+    expect(() => decryptSecret(key, tampered)).toThrow();
+  });
+
+  it('generates ten distinct recovery codes that normalise predictably', () => {
+    const codes = newRecoveryCodes(10);
+    expect(new Set(codes).size).toBe(10);
+    for (const c of codes) expect(c).toMatch(/^[a-z2-9]{4}-[a-z2-9]{4}-[a-z2-9]{4}$/);
+    expect(normalizeRecoveryCode('  AB3K-9XMQ-7TZP ')).toBe('ab3k-9xmq-7tzp');
   });
 });

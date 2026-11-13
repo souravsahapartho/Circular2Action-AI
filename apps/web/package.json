@@ -15,10 +15,13 @@
     "next": "15.5.29",
     "react": "19.1.10",
     "react-dom": "19.1.10",
-    "server-only": "0.0.1"
+    "server-only": "0.0.1",
+    "@c2a/contracts": "workspace:*",
+    "qrcode": "1.5.4"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0"
+    "@types/react-dom": "^19.1.0",
+    "@types/qrcode": "1.5.5"
   }
 }

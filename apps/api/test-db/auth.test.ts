@@ -264,7 +264,7 @@ describe('auth, sessions, RBAC, consent and deletion request on TiDB', () => {
     registration.password = 'reset password value';
   });
 
-  it('RBAC: staff accounts cannot sign in until MFA exists; users have no admin permission', async () => {
+  it('RBAC: a staff password login only reaches the MFA step; staff routes stay closed until the second factor', async () => {
     const [u] = await t.db.query<Row & { id: string }>(
       "SELECT id FROM users WHERE email_normalized = 'rumana@example.com'",
     );
@@ -277,10 +277,13 @@ describe('auth, sessions, RBAC, consent and deletion request on TiDB', () => {
       email: registration.email,
       password: registration.password,
     });
-    expect(res.json().error.code).toBe('MFA_REQUIRED');
+    // password alone starts a restricted session: it says a second factor is required and nothing else opens
+    expect(res.json().data).toMatchObject({ mfa_required: true, mfa_enrolled: false });
+    expect((await b.req('GET', '/api/v1/me/consents')).json().error.code).toBe('MFA_REQUIRED');
     await t.db.execute("DELETE FROM user_roles WHERE user_id = :id AND role = 'editor'", {
       id: u!.id,
     });
+    await t.db.execute('DELETE FROM user_sessions WHERE user_id = :id', { id: u!.id });
   });
 
   it('consents: optional purpose can be granted and withdrawn; terms cannot be withdrawn', async () => {

@@ -6,7 +6,7 @@ const API_ORIGIN = process.env.API_ORIGIN ?? 'http://localhost:4000';
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  transpilePackages: ['@c2a/eligibility', '@c2a/dates'],
+  transpilePackages: ['@c2a/eligibility', '@c2a/dates', '@c2a/contracts'],
   async rewrites() {
     return [
       { source: '/api/:path*', destination: `${API_ORIGIN}/api/:path*` },

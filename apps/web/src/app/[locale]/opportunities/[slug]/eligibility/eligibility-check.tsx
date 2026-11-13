@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import {
   evaluate,
@@ -10,11 +11,12 @@ import {
   type Requirement,
   type RuleOutcome,
 } from '@c2a/eligibility';
-import { StatusBadge } from '@/components/states';
+import { Icon, StatusBadge } from '@/components/ui';
 import type { Locale } from '@/i18n/config';
 import type { Dictionary } from '@/i18n/dictionaries';
 import { t } from '@/i18n/dictionaries';
 import type { ApiRequirement } from '@/lib/api';
+import { callApi, errorMessage } from '@/lib/client-api';
 
 const LEVELS: Level[] = ['ssc', 'hsc', 'diploma', 'bachelor', 'masters', 'mphil', 'phd'];
 
@@ -58,7 +60,7 @@ function RuleRow({ o, labels }: { o: RuleOutcome; labels: L }) {
         ? 'not_eligible'
         : 'insufficient_information';
   return (
-    <li className="row" style={{ gridTemplateColumns: '1fr', gap: 4 }}>
+    <li className="rule-row">
       <span>{o.sourceText ?? o.ruleType}</span>
       <span>
         <span className={`status ${cls}`}>
@@ -66,7 +68,7 @@ function RuleRow({ o, labels }: { o: RuleOutcome; labels: L }) {
           {labels[o.result]}
         </span>
         {o.result === 'unknown' ? (
-          <span className="muted" style={{ marginLeft: 8 }}>
+          <span className="muted small" style={{ marginLeft: 8 }}>
             {reasonText(o, labels)}
           </span>
         ) : null}
@@ -75,23 +77,79 @@ function RuleRow({ o, labels }: { o: RuleOutcome; labels: L }) {
   );
 }
 
-export function EligibilityCheck({
-  requirements,
+function ResultView({
+  result,
   labels,
   locale,
 }: {
-  requirements: ApiRequirement[];
+  result: EvaluationResult;
   labels: L;
   locale: Locale;
+}) {
+  const num = (n: number) => new Intl.NumberFormat(locale === 'bn' ? 'bn-BD' : 'en-GB').format(n);
+  return (
+    <section aria-live="polite" className="card" style={{ marginTop: 24 }}>
+      <h2 style={{ marginTop: 0 }}>
+        <StatusBadge status={result.status} label={labels[result.status]} />
+      </h2>
+      <p className="muted tabular">
+        {t(labels.summaryLine, {
+          pass: num(result.summary.pass),
+          fail: num(result.summary.fail),
+          unknown: num(result.summary.unknown),
+        })}
+      </p>
+      <h3>{labels.rules}</h3>
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {result.groups.flatMap((g) =>
+          g.branches.flatMap((b) =>
+            b.rules.map((o) => <RuleRow key={o.requirementId} o={o} labels={labels} />),
+          ),
+        )}
+      </ul>
+      {result.preferred.length > 0 ? (
+        <>
+          <h3 style={{ marginTop: 20 }}>{labels.preferredTitle}</h3>
+          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            {result.preferred.map((o) => (
+              <RuleRow key={o.requirementId} o={o} labels={labels} />
+            ))}
+          </ul>
+        </>
+      ) : null}
+      <p className="muted small" style={{ marginTop: 16 }}>
+        {labels.disclaimer}
+      </p>
+    </section>
+  );
+}
+
+export function EligibilityCheck({
+  opportunityId,
+  requirements,
+  labels,
+  errors,
+  locale,
+  signedIn,
+}: {
+  opportunityId: string;
+  requirements: ApiRequirement[];
+  labels: L;
+  errors: Record<string, string>;
+  locale: Locale;
+  signedIn: boolean;
 }) {
   const [dob, setDob] = useState('');
   const [level, setLevel] = useState<Level | ''>('');
   const [gpa, setGpa] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [saved, setSaved] = useState<EvaluationResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const reqs = useMemo(() => requirements.map(toRequirement), [requirements]);
 
-  const result: EvaluationResult | null = useMemo(() => {
+  const guestResult: EvaluationResult | null = useMemo(() => {
     if (!submitted) return null;
     const education: EducationRecord[] = level
       ? [
@@ -112,107 +170,119 @@ export function EligibilityCheck({
     return evaluate(profile, reqs, todayDhaka());
   }, [submitted, dob, level, gpa, reqs]);
 
-  const num = (n: number) => new Intl.NumberFormat(locale === 'bn' ? 'bn-BD' : 'en-GB').format(n);
+  async function useSavedProfile() {
+    setBusy(true);
+    setError(null);
+    const out = await callApi<EvaluationResult>(
+      'POST',
+      `/api/v1/opportunities/${opportunityId}/eligibility`,
+    );
+    setBusy(false);
+    if (out.ok && out.data) setSaved(out.data);
+    else setError(errorMessage(errors, out));
+  }
 
   return (
-    <div>
-      <p>{labels.intro}</p>
-      <p className="muted">{labels.privacy}</p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          setSubmitted(true);
-        }}
-        style={{ maxWidth: 420 }}
-      >
-        <div className="field">
-          <label htmlFor="dob">{labels.dob}</label>
-          <input
-            id="dob"
-            type="date"
-            className="input"
-            value={dob}
-            max={todayDhaka()}
-            onChange={(e) => {
-              setDob(e.target.value);
-              setSubmitted(false);
-            }}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="level">{labels.level}</label>
-          <select
-            id="level"
-            className="input"
-            value={level}
-            onChange={(e) => {
-              setLevel(e.target.value as Level | '');
-              setSubmitted(false);
-            }}
-          >
-            <option value="">{labels.lvl_none}</option>
-            {LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {labels[`lvl_${l}` as keyof L]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="gpa">{labels.gpa4}</label>
-          <input
-            id="gpa"
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            min="0"
-            max="4"
-            className="input"
-            value={gpa}
-            onChange={(e) => {
-              setGpa(e.target.value);
-              setSubmitted(false);
-            }}
-          />
-        </div>
-        <button className="btn" type="submit">
-          {labels.check}
-        </button>
-      </form>
-
-      {result ? (
-        <section aria-live="polite" style={{ marginTop: 32 }}>
-          <h2>
-            <StatusBadge status={result.status} dict={{ eligibility: labels } as Dictionary} />
-          </h2>
-          <p className="muted tabular">
-            {t(labels.summaryLine, {
-              pass: num(result.summary.pass),
-              fail: num(result.summary.fail),
-              unknown: num(result.summary.unknown),
-            })}
-          </p>
-          <h2>{labels.rules}</h2>
-          <ul className="rows">
-            {result.groups.flatMap((g) =>
-              g.branches.flatMap((b) =>
-                b.rules.map((o) => <RuleRow key={o.requirementId} o={o} labels={labels} />),
-              ),
-            )}
-          </ul>
-          {result.preferred.length > 0 ? (
-            <>
-              <h2>{labels.preferredTitle}</h2>
-              <ul className="rows">
-                {result.preferred.map((o) => (
-                  <RuleRow key={o.requirementId} o={o} labels={labels} />
-                ))}
-              </ul>
-            </>
+    <div className="stack">
+      {signedIn ? (
+        <div className="card">
+          <p style={{ marginTop: 0 }}>{labels.profileIntro}</p>
+          <div className="row-flex">
+            <button
+              className="btn"
+              type="button"
+              disabled={busy}
+              onClick={() => void useSavedProfile()}
+            >
+              <Icon name="check" /> {busy ? labels.checking : labels.useProfile}
+            </button>
+            <Link className="btn secondary" href={`/${locale}/app/profile`}>
+              <Icon name="user" /> {labels.editProfile}
+            </Link>
+          </div>
+          {error ? (
+            <p className="field-error" role="alert" style={{ marginTop: 12 }}>
+              {error}
+            </p>
           ) : null}
-          <p className="muted">{labels.disclaimer}</p>
-          <p className="muted">{labels.signInSave}</p>
-        </section>
+        </div>
+      ) : null}
+      {saved ? <ResultView result={saved} labels={labels} locale={locale} /> : null}
+
+      <details className="card" open={!signedIn}>
+        <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+          {signedIn ? labels.tryGuest : labels.intro}
+        </summary>
+        <p className="muted small" style={{ marginTop: 12 }}>
+          {labels.privacy}
+        </p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            setSubmitted(true);
+          }}
+          style={{ maxWidth: 440 }}
+        >
+          <div className="field">
+            <label htmlFor="dob">{labels.dob}</label>
+            <input
+              id="dob"
+              type="date"
+              className="input"
+              value={dob}
+              max={todayDhaka()}
+              onChange={(e) => {
+                setDob(e.target.value);
+                setSubmitted(false);
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="level">{labels.level}</label>
+            <select
+              id="level"
+              className="input"
+              value={level}
+              onChange={(e) => {
+                setLevel(e.target.value as Level | '');
+                setSubmitted(false);
+              }}
+            >
+              <option value="">{labels.lvl_none}</option>
+              {LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  {labels[`lvl_${l}` as keyof L]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="gpa">{labels.gpa4}</label>
+            <input
+              id="gpa"
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              min="0"
+              max="4"
+              className="input"
+              value={gpa}
+              onChange={(e) => {
+                setGpa(e.target.value);
+                setSubmitted(false);
+              }}
+            />
+          </div>
+          <button className="btn" type="submit">
+            {labels.check}
+          </button>
+        </form>
+      </details>
+      {guestResult ? <ResultView result={guestResult} labels={labels} locale={locale} /> : null}
+      {!signedIn ? (
+        <p className="muted">
+          <Link href={`/${locale}/sign-in`}>{labels.signInSave}</Link>
+        </p>
       ) : null}
     </div>
   );
