@@ -26,6 +26,11 @@ export default async function Detail({
         <article>
           <h1>{res.data.title}</h1>
           <p className="muted">{res.data.organization}</p>
+          {res.data.title.startsWith('[') ? (
+            <p className="state" role="note" style={{ padding: 12 }}>
+              {d.detail.sampleNotice}
+            </p>
+          ) : null}
           {res.data.verified ? <p>✓ {d.detail.verified}</p> : null}
           <h2>{d.detail.facts}</h2>
           <dl>
@@ -48,9 +53,30 @@ export default async function Detail({
                 <dd>{res.data.location}</dd>
               </>
             ) : null}
+            {res.data.vacancies ? (
+              <>
+                <dt>{d.detail.vacancies}</dt>
+                <dd className="tabular">{res.data.vacancies}</dd>
+              </>
+            ) : null}
           </dl>
           {res.data.summary ? <p style={{ maxWidth: '70ch' }}>{res.data.summary}</p> : null}
-          <p style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <h2>{d.detail.requirements}</h2>
+          {res.data.requirements && res.data.requirements.length > 0 ? (
+            <ul className="rows">
+              {res.data.requirements.map((r) => (
+                <li key={r.id} className="row" style={{ gridTemplateColumns: '1fr 140px' }}>
+                  <span>{r.text ?? r.rule_type}</span>
+                  <span className="muted">
+                    {r.necessity === 'mandatory' ? d.detail.mandatory : d.detail.preferred}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">{d.detail.noRequirements}</p>
+          )}
+          <p style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 24 }}>
             <Link className="btn" href={`/${locale}/opportunities/${slug}/eligibility`}>
               {d.detail.checkEligibility}
             </Link>
@@ -59,9 +85,6 @@ export default async function Detail({
                 {d.detail.official}
               </a>
             ) : null}
-          </p>
-          <p>
-            <a href="#report">{d.detail.report}</a>
           </p>
         </article>
       ) : res.kind === 'not_found' ? (

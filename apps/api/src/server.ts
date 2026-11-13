@@ -3,6 +3,7 @@ import { createDb } from './db/pool';
 import { databaseCheck } from './db/readiness';
 import { AuthRepo } from './modules/auth/repo';
 import { LogMailer } from './modules/email/mailer';
+import { OpportunityRepo } from './modules/opportunities/repo';
 import { loadConfig } from './platform/config';
 
 async function main(): Promise<void> {
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
     readiness: [databaseCheck(db)],
     ...(db
       ? {
+          opportunities: { repo: new OpportunityRepo(db) },
           auth: {
             repo: new AuthRepo(db),
             mailer: new LogMailer((o, m) => console.warn(m, JSON.stringify(o))),

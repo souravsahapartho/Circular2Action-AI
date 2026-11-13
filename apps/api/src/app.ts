@@ -8,7 +8,9 @@ import { LIMITS, RateLimiter } from './platform/rate-limit';
 import { registerSecurityHeaders } from './platform/security-headers';
 import type { Mailer } from './modules/email/mailer';
 import type { AuthRepo } from './modules/auth/repo';
-import { registerAuth } from './modules/auth/routes';
+import { guardOptionsFor, registerAuth } from './modules/auth/routes';
+import type { OpportunityRepo } from './modules/opportunities/repo';
+import { registerOpportunities } from './modules/opportunities/routes';
 
 export interface ReadinessCheck {
   name: string;
@@ -23,6 +25,8 @@ export interface AppDeps {
   onTick?: () => Promise<{ enqueued: number }>;
   /** Identity module (needs the database). Omitted in platform-only tests. */
   auth?: { repo: AuthRepo; mailer: Mailer };
+  /** Public opportunity browse, detail and search (needs the database). */
+  opportunities?: { repo: OpportunityRepo };
 }
 
 /** Build the Fastify app. Routes are added per module; this is the platform skeleton (Phase 0). */
@@ -111,6 +115,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const out = deps.onTick ? await deps.onTick() : { enqueued: 0 };
     return reply.status(202).send({ data: out });
   });
+
+  const guard = guardOptionsFor({
+    appEnv: config.APP_ENV,
+    webOrigin: config.WEB_ORIGIN,
+    webOriginsExtra: config.webOriginsExtra,
+    secret: config.hmacSecrets[0]!,
+  });
+  if (deps.opportunities)
+    registerOpportunities(app, { repo: deps.opportunities.repo, clock, guard });
 
   if (deps.auth) {
     registerAuth(app, {

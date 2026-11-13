@@ -1,21 +1,17 @@
 import { notFound } from 'next/navigation';
-import type { EligibilityStatus } from '@c2a/eligibility';
 import { Page } from '@/components/chrome';
-import { EmptyState, StatusBadge } from '@/components/states';
+import { EmptyState, ErrorState } from '@/components/states';
 import { isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
+import { apiGet, idFromSlug, type OpportunityDetail } from '@/lib/api';
+import { EligibilityCheck } from './eligibility-check';
 
 export const metadata = { robots: { index: false } };
-const ORDER: EligibilityStatus[] = [
-  'eligible',
-  'not_eligible',
-  'needs_verification',
-  'insufficient_information',
-];
+export const dynamic = 'force-dynamic';
 
 /**
- * Eligibility result for one opportunity. The result needs a signed-in profile (Module C); until the auth and
- * profile modules ship, the page explains that and shows the four statuses the engine can return.
+ * Eligibility for one opportunity. The rules come from the API; the answers are evaluated in the visitor's
+ * browser with the same engine the API tests use, so nothing personal is sent or stored (plan principles PR-1..).
  */
 export default async function Eligibility({
   params,
@@ -25,19 +21,27 @@ export default async function Eligibility({
   const { locale, slug } = await params;
   if (!isLocale(locale)) notFound();
   const d = getDictionary(locale);
+  const id = idFromSlug(slug);
+  const res = id
+    ? await apiGet<OpportunityDetail>(`/api/v1/opportunities/${id}?locale=${locale}`)
+    : ({ kind: 'not_found' } as const);
   return (
     <Page locale={locale} dict={d} section="explore" path={`/opportunities/${slug}/eligibility`}>
       <h1>{d.eligibility.title}</h1>
-      <EmptyState title={d.app.signInRequired} text={d.eligibility.signInNeeded} />
-      <h2>{d.eligibility.rules}</h2>
-      <ul className="rows" aria-label={d.eligibility.rules}>
-        {ORDER.map((s) => (
-          <li key={s} className="row" style={{ gridTemplateColumns: '1fr' }}>
-            <StatusBadge status={s} dict={d} />
-          </li>
-        ))}
-      </ul>
-      <p className="muted">{d.eligibility.disclaimer}</p>
+      {res.kind === 'ok' ? (
+        <>
+          <p className="muted">{res.data.title}</p>
+          <EligibilityCheck
+            requirements={res.data.requirements ?? []}
+            labels={d.eligibility}
+            locale={locale}
+          />
+        </>
+      ) : res.kind === 'not_found' ? (
+        <EmptyState title={d.detail.notFound} text={d.explore.emptyText} />
+      ) : (
+        <ErrorState dict={d} />
+      )}
     </Page>
   );
 }

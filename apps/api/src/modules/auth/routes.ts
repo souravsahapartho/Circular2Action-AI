@@ -92,17 +92,23 @@ function json(req: FastifyRequest): unknown {
   }
 }
 
-export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
-  const { repo, mailer, clock } = deps;
-  const cookies = cookieNames(deps.appEnv);
-  const csrfKey = hmac(deps.secret, 'csrf-key').toString('hex');
-  const ipKey = hmac(deps.secret, 'ip-hash-key').toString('hex');
-  const g: GuardOptions = {
-    cookies,
-    csrfKey,
+/** Guard options (cookie names, CSRF key, allowed web origins) shared by every module's route() calls. */
+export function guardOptionsFor(
+  deps: Pick<AuthDeps, 'appEnv' | 'webOrigin' | 'webOriginsExtra' | 'secret'>,
+): GuardOptions & { cookies: ReturnType<typeof cookieNames>; csrfKey: string } {
+  return {
+    cookies: cookieNames(deps.appEnv),
+    csrfKey: hmac(deps.secret, 'csrf-key').toString('hex'),
     webOrigin: deps.webOrigin,
     webOriginsExtra: deps.webOriginsExtra ?? [],
   };
+}
+
+export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
+  const { repo, mailer, clock } = deps;
+  const g = guardOptionsFor(deps);
+  const { cookies, csrfKey } = g;
+  const ipKey = hmac(deps.secret, 'ip-hash-key').toString('hex');
   const loginByIp = new RateLimiter(LIMITS.login);
   const loginByAccount = new RateLimiter(LIMITS.login);
   const registerByIp = new RateLimiter(LIMITS.register);

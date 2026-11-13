@@ -146,3 +146,10 @@ export function loadMigrationConfig(
   if (!url) throw new Error('Set DATABASE_MIGRATION_URL (or DATABASE_URL) to run migrations');
   return { url, tls: parsed.data.DATABASE_TLS };
 }
+
+/** Seed command settings: demo data is allowed only with ALLOW_DEMO_SEED=true (never in production). */
+export function loadSeedConfig(
+  env: Record<string, string | undefined> = process.env,
+): MigrationConfig & { allowDemo: boolean } {
+  return { ...loadMigrationConfig(env), allowDemo: env.ALLOW_DEMO_SEED === 'true' };
+}

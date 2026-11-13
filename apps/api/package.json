@@ -9,7 +9,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "migrate": "tsx src/db/migrate-cli.ts",
-    "test:db": "vitest run --config vitest.db.config.ts"
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "seed": "tsx src/db/seed-cli.ts"
   },
   "dependencies": {
     "@c2a/contracts": "workspace:*",
