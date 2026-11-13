@@ -12,7 +12,7 @@ import path from 'node:path';
 const SERVICE_ID = process.env.RENDER_SERVICE_ID ?? 'srv-dbram23tqb8s73e0lr3g';
 const SERVICE_URL = 'https://c2a-api-staging.onrender.com';
 const env = readEnvFile();
-need(env, 'TIDB_ROOT_URL', 'RENDER_API_KEY');
+need(env, 'RENDER_API_KEY');
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 const run = (script) =>
@@ -21,8 +21,9 @@ const run = (script) =>
     stdio: ['ignore', 'inherit', 'inherit'],
   });
 
-// 1) users and database (writes DATABASE_URL, DATABASE_MIGRATION_URL, DATABASE_TLS into .env.local)
-run('tidb-setup.mjs');
+// 1) users and database (writes DATABASE_URL, DATABASE_MIGRATION_URL, DATABASE_TLS into .env.local).
+// Without the root URL, the users must already exist (see gen-db-users.mjs).
+if (env.TIDB_ROOT_URL) run('tidb-setup.mjs');
 const after = readEnvFile();
 need(after, 'DATABASE_URL', 'DATABASE_MIGRATION_URL');
 

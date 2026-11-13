@@ -1,17 +1,17 @@
 # Gate S-3 — TiDB compatibility
 
-Status: **local part passed; Starter part not run yet (blocked on the instance credentials). Gate NOT passed.**
+Status: **local and Starter suites pass; T-13 (1-hour soak), T-14 (backup/export round trip) and T-15 (RU table) are not run. Gate NOT yet passed.**
 
 ## Environments
 
-| Environment                                                                                             | Version          | State                                                                            |
-| ------------------------------------------------------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------- |
-| Local container `pingcap/tidb:v8.5.3` (unistore, single node, `docker-compose.yml`)                     | v8.5.3 Community | All tests below run                                                              |
-| Local container `pingcap/tidb:v8.5.8` (first run)                                                       | v8.5.8           | All tests passed, including the single-statement claim                           |
-| TiDB Cloud Starter `c2a-staging`, AWS ap-southeast-1 (Singapore), $0 spending limit, created 2026-11-13 | v8.5.3 (console) | Created, Active. Suite not run: `TIDB_ROOT_URL` not yet provided in `.env.local` |
+| Environment                                                                                             | Version           | State                                                                                                                |
+| ------------------------------------------------------------------------------------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Local container `pingcap/tidb:v8.5.3` (unistore, single node, `docker-compose.yml`)                     | v8.5.3 Community  | All tests below run                                                                                                  |
+| Local container `pingcap/tidb:v8.5.8` (first run)                                                       | v8.5.8            | All tests passed, including the single-statement claim                                                               |
+| TiDB Cloud Starter `c2a-staging`, AWS ap-southeast-1 (Singapore), $0 spending limit, created 2026-11-13 | v8.5.3-serverless | Full suite run through a DDL user from this machine: 5 files, 34 tests passed (`starter-tidb-v8.5.3-serverless.log`) |
 
 Harness: `apps/api/test-db/*.test.ts`, run with `pnpm --filter @c2a/api test:db` (`TEST_DATABASE_URL`, `TEST_DATABASE_TLS`,
-`S3_QUEUE_JOBS`, `S3_QUEUE_WORKERS`). Raw output: `local-tidb-v8.5.8.log`, `local-tidb-v8.5.3.log`.
+`S3_QUEUE_JOBS`, `S3_QUEUE_WORKERS`). Raw output: `local-tidb-v8.5.8.log`, `local-tidb-v8.5.3.log`, `starter-tidb-v8.5.3-serverless.log`.
 
 ## Results (local v8.5.3)
 
@@ -41,9 +41,12 @@ Harness: `apps/api/test-db/*.test.ts`, run with `pnpm --filter @c2a/api test:db`
 - Expired-lease reclaim: pass — the job is reclaimed (attempts 2) and the stale worker's heartbeat, completion and
   release are all refused. Retry backoff, release-without-attempt and exhausted-lease sweep: pass.
 
+### T-07 on Starter
+
+20 workers x 10,000 jobs: 10,000 effects, 10,000 distinct jobs, **0 duplicates**, 0 lost leases, 225.6 s (44 jobs/s over the internet; 315 jobs/s on the local container). Lease reclaim and fencing pass.
+
 ## Remaining to pass the gate
 
-1. Owner puts the Starter root connection string in `.env.local` (`TIDB_ROOT_URL`).
-2. `node scripts/provision/tidb-setup.mjs` (creates `c2a_staging`, migration and runtime users: T-12).
-3. Run the suite with `TEST_DATABASE_URL=<TEST_DATABASE_URL_CLOUD> TEST_DATABASE_TLS=true S3_QUEUE_JOBS=10000`.
-4. One-hour connection soak (T-13), export/re-import (T-14), RU readings from the console (T-15).
+1. T-13: one-hour connection soak with 5-minute recycle and forced termination.
+2. T-14: confirm free-tier backup visibility, restore to a scratch instance, export and re-import round trip.
+3. T-15: Request Unit readings (console) for list, search and publish transactions.
