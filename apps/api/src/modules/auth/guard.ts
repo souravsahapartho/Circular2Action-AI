@@ -32,6 +32,7 @@ export interface GuardOptions {
   cookies: CookieNames;
   csrfKey: string;
   webOrigin: string;
+  webOriginsExtra?: readonly string[];
 }
 
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -40,7 +41,7 @@ const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 export function guard(access: Access, opts: GuardOptions) {
   return async (req: FastifyRequest, _reply: FastifyReply): Promise<void> => {
     if (!SAFE.has(req.method)) {
-      if (!originAllowed(req.headers.origin, opts.webOrigin)) {
+      if (!originAllowed(req.headers.origin, [opts.webOrigin, ...(opts.webOriginsExtra ?? [])])) {
         throw new AppError('CSRF_FAILED', 'Request origin is not allowed.');
       }
       const cookies = parseCookies(req.headers.cookie);

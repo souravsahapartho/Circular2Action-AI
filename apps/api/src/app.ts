@@ -46,7 +46,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const limiter = new RateLimiter(LIMITS.publicGet);
   app.addHook('onRequest', async (req, reply) => {
-    if (req.url.startsWith('/internal/') || req.url === '/healthz') return;
+    if (req.url.startsWith('/internal/') || req.url === '/healthz' || req.url === '/') return;
     const r = limiter.take(`${req.ip}:public`, clock.now().getTime());
     void reply.header('ratelimit-remaining', String(r.remaining));
     if (!r.allowed) {
@@ -54,6 +54,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         'retry-after': String(r.retryAfterSeconds),
       });
     }
+  });
+
+  // Landing page so the bare service URL is not a JSON 404 (plan 12.1 keeps the API under /api/v1).
+  app.get('/', async (req, reply) => {
+    if ((req.headers.accept ?? '').includes('application/json')) {
+      return { service: 'circular2action-api', status: 'ok', health: '/healthz', ready: '/readyz' };
+    }
+    const web = config.WEB_ORIGIN;
+    return reply
+      .type('text/html; charset=utf-8')
+      .send(
+        `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Circular2Action API</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:640px;margin:48px auto;padding:0 16px;color:#17201f;background:#faf8f4}a{color:#0b5d5e}code{background:#f1eee7;padding:2px 6px;border-radius:2px}</style></head><body><h1>Circular2Action API</h1><p>This is the API service (staging). The website is a separate app.</p><ul><li><a href="${web}">Open the website</a></li><li><a href="/healthz"><code>/healthz</code></a> liveness</li><li><a href="/readyz"><code>/readyz</code></a> readiness (database)</li></ul></body></html>`,
+      );
   });
 
   app.get('/healthz', async () => ({ status: 'ok' }));
@@ -105,6 +118,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       clock,
       appEnv: config.APP_ENV,
       webOrigin: config.WEB_ORIGIN,
+      webOriginsExtra: config.webOriginsExtra,
       secret: config.hmacSecrets[0]!,
     });
   }

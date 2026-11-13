@@ -308,3 +308,34 @@ describe('http app', () => {
     await app.close();
   });
 });
+
+describe('landing page', () => {
+  it('GET / serves an HTML page with links instead of a JSON 404, and JSON when asked', async () => {
+    const config = loadConfig({
+      NODE_ENV: 'test',
+      INTERNAL_HMAC_SECRETS: 'x'.repeat(40),
+      WEB_ORIGIN: 'https://example-web.test',
+    });
+    const app = buildApp({ config });
+    const html = await app.inject({ method: 'GET', url: '/' });
+    expect(html.statusCode).toBe(200);
+    expect(html.headers['content-type']).toMatch(/text\/html/);
+    expect(html.body).toContain('https://example-web.test');
+    expect(html.body).toContain('/healthz');
+    const json = await app.inject({
+      method: 'GET',
+      url: '/',
+      headers: { accept: 'application/json' },
+    });
+    expect(json.json()).toMatchObject({ status: 'ok' });
+    expect((await app.inject({ method: 'GET', url: '/nope' })).statusCode).toBe(404);
+  });
+
+  it('WEB_ORIGINS_EXTRA is parsed and validated', () => {
+    const base = { NODE_ENV: 'test', INTERNAL_HMAC_SECRETS: 'x'.repeat(40) };
+    expect(
+      loadConfig({ ...base, WEB_ORIGINS_EXTRA: 'https://a.test, https://b.test' }).webOriginsExtra,
+    ).toEqual(['https://a.test', 'https://b.test']);
+    expect(() => loadConfig({ ...base, WEB_ORIGINS_EXTRA: 'not a url' })).toThrow();
+  });
+});

@@ -22,11 +22,15 @@ export function verifyCsrf(
   return safeEqual(sig, hmac(key, `csrf:${nonce}`).toString('base64url'));
 }
 
-/** Origin check: a present Origin header must equal the web origin. Absent Origin is allowed (same-origin GET-less tools). */
-export function originAllowed(origin: string | undefined, webOrigin: string): boolean {
+/** Origin check: a present Origin header must equal an allowed web origin. Absent Origin is allowed (non-browser clients). */
+export function originAllowed(
+  origin: string | undefined,
+  allowed: string | readonly string[],
+): boolean {
   if (!origin) return true;
   try {
-    return new URL(origin).origin === new URL(webOrigin).origin;
+    const o = new URL(origin).origin;
+    return (typeof allowed === 'string' ? [allowed] : allowed).some((a) => new URL(a).origin === o);
   } catch {
     return false;
   }

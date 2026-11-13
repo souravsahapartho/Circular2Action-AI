@@ -79,5 +79,9 @@ describe('csrf', () => {
     expect(originAllowed('https://c2a-web.vercel.app', 'https://c2a-web.vercel.app/')).toBe(true);
     expect(originAllowed('https://evil.example', 'https://c2a-web.vercel.app')).toBe(false);
     expect(originAllowed('null', 'https://c2a-web.vercel.app')).toBe(false);
+    // several allowed web origins (Vercel and a Render-hosted copy)
+    const both = ['https://c2a-web.vercel.app', 'https://c2a-web-staging.onrender.com'];
+    expect(originAllowed('https://c2a-web-staging.onrender.com', both)).toBe(true);
+    expect(originAllowed('https://evil.example', both)).toBe(false);
   });
 });

@@ -38,6 +38,7 @@ export interface AuthDeps {
   clock: Clock;
   appEnv: 'local' | 'staging' | 'production';
   webOrigin: string;
+  webOriginsExtra?: readonly string[];
   /** First internal secret; sub-keys are derived per use. */
   secret: string;
 }
@@ -96,7 +97,12 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
   const cookies = cookieNames(deps.appEnv);
   const csrfKey = hmac(deps.secret, 'csrf-key').toString('hex');
   const ipKey = hmac(deps.secret, 'ip-hash-key').toString('hex');
-  const g: GuardOptions = { cookies, csrfKey, webOrigin: deps.webOrigin };
+  const g: GuardOptions = {
+    cookies,
+    csrfKey,
+    webOrigin: deps.webOrigin,
+    webOriginsExtra: deps.webOriginsExtra ?? [],
+  };
   const loginByIp = new RateLimiter(LIMITS.login);
   const loginByAccount = new RateLimiter(LIMITS.login);
   const registerByIp = new RateLimiter(LIMITS.register);

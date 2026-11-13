@@ -15,6 +15,19 @@ export const envSchema = z
     APP_ENV: z.enum(['local', 'staging', 'production']).default('local'),
     PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
+    /** Additional allowed web origins (comma separated), e.g. a second hosting of the same web app. */
+    WEB_ORIGINS_EXTRA: z
+      .string()
+      .default('')
+      .refine(
+        (v) =>
+          v
+            .split(',')
+            .map((x) => x.trim())
+            .filter(Boolean)
+            .every((x) => z.string().url().safeParse(x).success),
+        'WEB_ORIGINS_EXTRA must be comma-separated URLs',
+      ),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
@@ -86,8 +99,12 @@ export const envSchema = z
     }
   });
 
-export type Config = Omit<z.infer<typeof envSchema>, 'INTERNAL_HMAC_SECRETS'> & {
+export type Config = Omit<
+  z.infer<typeof envSchema>,
+  'INTERNAL_HMAC_SECRETS' | 'WEB_ORIGINS_EXTRA'
+> & {
   hmacSecrets: string[];
+  webOriginsExtra: string[];
 };
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
@@ -98,8 +115,14 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     );
     throw new Error(`Invalid configuration:\n${lines.join('\n')}`);
   }
-  const { INTERNAL_HMAC_SECRETS, ...rest } = parsed.data;
-  return { ...rest, hmacSecrets: INTERNAL_HMAC_SECRETS.split(',').map((s) => s.trim()) };
+  const { INTERNAL_HMAC_SECRETS, WEB_ORIGINS_EXTRA, ...rest } = parsed.data;
+  return {
+    ...rest,
+    hmacSecrets: INTERNAL_HMAC_SECRETS.split(',').map((s) => s.trim()),
+    webOriginsExtra: WEB_ORIGINS_EXTRA.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  };
 }
 
 const migrationSchema = z.object({

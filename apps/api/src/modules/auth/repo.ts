@@ -323,9 +323,7 @@ export class AuthRepo {
     });
   }
 
-  async listSessions(
-    userId: string,
-  ): Promise<
+  async listSessions(userId: string): Promise<
     Array<{
       id: string;
       user_agent: string | null;
