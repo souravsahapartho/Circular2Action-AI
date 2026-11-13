@@ -213,7 +213,7 @@ export class OpportunityRepo {
       positions: r.position_title,
       vacancies: r.vacancies === null ? null : Number(r.vacancies),
       application_url: r.application_url,
-      how_to_apply: r.how_to_apply,
+      how_to_apply: textFor(r.how_to_apply, locale),
       requirements: reqs.map((x) => ({
         id: String(x.id),
         rule_type: x.rule_type,
