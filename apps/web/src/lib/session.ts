@@ -37,8 +37,8 @@ export async function requireUser(locale: Locale, nextPath: string): Promise<Me>
 /** For /admin: staff only, with the second factor verified. */
 export async function requireStaff(): Promise<Me> {
   const me = await getMe();
-  if (!me) redirect('/en/sign-in?next=%2Fadmin');
-  if (!me.staff) redirect('/en');
+  if (!me) redirect('/admin/login');
+  if (!me.staff) redirect('/admin/login');
   if (!me.mfa_verified) redirect('/admin/mfa');
   return me;
 }

@@ -29,7 +29,10 @@ export function TrackButton({
 
   if (!signedIn) {
     return (
-      <Link className="btn block" href={`/${locale}/sign-in?next=${encodeURIComponent(nextPath)}`}>
+      <Link
+        className="btn secondary block"
+        href={`/${locale}/sign-in?next=${encodeURIComponent(nextPath)}`}
+      >
         <Icon name="list" /> {labels.signIn}
       </Link>
     );
@@ -45,7 +48,7 @@ export function TrackButton({
     <>
       <button
         type="button"
-        className="btn block"
+        className="btn secondary block"
         disabled={busy}
         onClick={async () => {
           setBusy(true);

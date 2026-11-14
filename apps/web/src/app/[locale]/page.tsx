@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
 import { OpportunityList } from '@/components/opportunity-list';
+import { WebJobCard, type WebJob } from '@/components/web-job-card';
 import { Icon } from '@/components/ui';
 import { formatNumber, isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
@@ -15,11 +16,12 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   if (!isLocale(locale)) notFound();
   const d = getDictionary(locale);
   const me = await getMe();
-  const [cats, soon, newest, saved] = await Promise.all([
+  const [cats, soon, newest, saved, web] = await Promise.all([
     apiGet<CategoryInfo[]>(`/api/v1/categories?locale=${locale}`),
     apiGet<OpportunitySummary[]>(`/api/v1/opportunities?locale=${locale}&limit=4`),
     apiGet<OpportunitySummary[]>(`/api/v1/opportunities?locale=${locale}&limit=4&sort=newest`),
     me ? apiGet<string[]>('/api/v1/me/saved-ids', { auth: true }) : Promise.resolve(null),
+    apiGet<WebJob[]>('/api/v1/listings?limit=4', { timeoutMs: 8000 }),
   ]);
   const savedIds = me ? new Set(saved && saved.kind === 'ok' ? saved.data : []) : null;
   const total = cats.kind === 'ok' ? cats.data.reduce((n, c) => n + c.count, 0) : null;
@@ -167,6 +169,27 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
               savedIds={savedIds}
               nextPath={`/${locale}`}
             />
+          </section>
+        ) : null}
+
+        {web.kind === 'ok' && web.data.length > 0 ? (
+          <section className="section" aria-labelledby="web-h">
+            <div className="section-head">
+              <div>
+                <h2 id="web-h">{d.webJobs.homeTitle}</h2>
+                <p className="muted small" style={{ margin: 0 }}>
+                  {d.webJobs.homeText}
+                </p>
+              </div>
+              <Link href={`/${locale}/web-jobs`}>
+                {d.webJobs.seeAll} <Icon name="arrow" size="sm" />
+              </Link>
+            </div>
+            <div className="grid-2">
+              {web.data.map((j) => (
+                <WebJobCard key={j.id} job={j} locale={locale} d={d} />
+              ))}
+            </div>
           </section>
         ) : null}
 

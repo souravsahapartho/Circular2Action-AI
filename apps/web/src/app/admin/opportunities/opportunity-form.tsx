@@ -19,6 +19,7 @@ export interface AdminOpp {
   location_slug: string | null;
   official_url: string | null;
   application_url: string | null;
+  apply_mode?: string;
   how_to_apply: string | null;
   required_documents: Array<{ label: string; note?: string }> | null;
   publication_status: string;
@@ -175,6 +176,7 @@ export function OpportunityForm({
     location_slug: initial?.location_slug ?? '',
     official_url: initial?.official_url ?? '',
     application_url: initial?.application_url ?? '',
+    apply_mode: initial?.apply_mode ?? 'external',
     how_to_apply: initial?.how_to_apply ?? '',
     documents: (initial?.required_documents ?? []).map((d) => d.label).join('\n'),
   });
@@ -221,6 +223,7 @@ export function OpportunityForm({
       location_slug: f.location_slug || null,
       official_url: f.official_url.trim() || null,
       application_url: f.application_url.trim() || null,
+      apply_mode: f.apply_mode,
       how_to_apply: f.how_to_apply.trim() || null,
       required_documents: docs.length ? docs : null,
       requirements: reqs.map(toApi),
@@ -486,6 +489,22 @@ export function OpportunityForm({
               onChange={(e) => set('application_url', e.target.value)}
             />
             {fe.application_url ? <span className="field-error">{fe.application_url}</span> : null}
+          </div>
+          <div className="field">
+            <label htmlFor="o-mode">Where can people apply?</label>
+            <select
+              id="o-mode"
+              className="input"
+              value={f.apply_mode}
+              onChange={(e) => set('apply_mode', e.target.value)}
+            >
+              <option value="external">Official link only</option>
+              <option value="site">On Circular2Action only (with tracking ID)</option>
+              <option value="both">Both: on this site and the official link</option>
+            </select>
+            <span className="muted small">
+              Applications made on the site appear under Applications, each with a tracking ID.
+            </span>
           </div>
         </div>
         <div className="form-grid two">

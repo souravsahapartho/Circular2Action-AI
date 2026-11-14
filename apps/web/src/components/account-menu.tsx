@@ -10,6 +10,7 @@ export interface MenuLabels {
   profile: string;
   saved: string;
   tracker: string;
+  applications: string;
   settings: string;
   signOut: string;
   signIn: string;
@@ -54,6 +55,9 @@ export function AccountMenu({
         </Link>
         <Link href={`/${locale}/app/saved`} onClick={close}>
           <Icon name="bookmark" /> {labels.saved}
+        </Link>
+        <Link href={`/${locale}/app/applications`} onClick={close}>
+          <Icon name="file" /> {labels.applications}
         </Link>
         <Link href={`/${locale}/app/tracker`} onClick={close}>
           <Icon name="list" /> {labels.tracker}

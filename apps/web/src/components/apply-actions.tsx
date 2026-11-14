@@ -23,6 +23,7 @@ export function ApplyActions({
   opportunity: {
     id: string;
     application_url?: string | null;
+    apply_mode?: string | undefined;
     source_url?: string | null;
     how_to_apply?: string | null;
   };
@@ -32,17 +33,31 @@ export function ApplyActions({
 }) {
   const apply = safeHref(opportunity.application_url);
   const official = safeHref(opportunity.source_url);
+  const onSite = opportunity.apply_mode === 'site' || opportunity.apply_mode === 'both';
   return (
     <div className="stack">
+      {onSite ? (
+        <Link className="btn block" href={`/${locale}/opportunities/${slug}/apply`}>
+          <Icon name="check" /> {d.apply.applyHere}
+        </Link>
+      ) : null}
       {apply ? (
-        <a className="btn block" href={apply} rel="noopener nofollow" target="_blank">
+        <a
+          className={`btn${onSite ? ' secondary' : ''} block`}
+          href={apply}
+          rel="noopener nofollow"
+          target="_blank"
+        >
           <Icon name="external" /> {d.detail.applyNow}
         </a>
       ) : opportunity.how_to_apply ? (
-        <Link className="btn block" href={`/${locale}/opportunities/${slug}#how-to-apply`}>
+        <Link
+          className="btn secondary block"
+          href={`/${locale}/opportunities/${slug}#how-to-apply`}
+        >
           <Icon name="file" /> {d.detail.howToApplyLink}
         </Link>
-      ) : (
+      ) : onSite ? null : (
         <p className="muted small" style={{ margin: 0 }}>
           {d.detail.noApplyLink}
         </p>

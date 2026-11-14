@@ -9,7 +9,7 @@ import { cookies } from 'next/headers';
 const API_ORIGIN = process.env.API_ORIGIN ?? 'http://localhost:4000';
 
 export type ApiResult<T> =
-  | { kind: 'ok'; data: T; total?: number }
+  | { kind: 'ok'; data: T; total?: number; meta?: Record<string, unknown> }
   | { kind: 'not_found' }
   | { kind: 'unauthenticated' }
   | { kind: 'forbidden'; code?: string }
@@ -61,8 +61,11 @@ export async function apiGet<T>(
       }
       if (res.status >= 500 && attempt === 0) continue;
       if (!res.ok) return { kind: 'unavailable', status: res.status };
-      const body = (await res.json()) as { data: T; meta?: { total?: number } };
-      return { kind: 'ok', data: body.data, total: body.meta?.total };
+      const body = (await res.json()) as {
+        data: T;
+        meta?: Record<string, unknown> & { total?: number };
+      };
+      return { kind: 'ok', data: body.data, total: body.meta?.total, meta: body.meta };
     } catch {
       if (attempt === 1) return { kind: 'unavailable' };
     }
@@ -101,6 +104,7 @@ export interface OpportunityDetail extends OpportunitySummary {
   positions?: string | null;
   vacancies?: number | null;
   application_url?: string | null;
+  apply_mode?: string;
   how_to_apply?: string | null;
   requirements?: ApiRequirement[];
 }

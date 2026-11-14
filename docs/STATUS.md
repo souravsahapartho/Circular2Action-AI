@@ -1,6 +1,6 @@
 # Implementation status
 
-Last updated: 2026-11-13. Source: `CIRCULAR2ACTION_MASTER_PLAN_v1.1.md`.
+Last updated: 2026-11-14. Source: `CIRCULAR2ACTION_MASTER_PLAN_v1.1.md`.
 
 ## Built and verified locally
 
@@ -30,7 +30,16 @@ Last updated: 2026-11-13. Source: `CIRCULAR2ACTION_MASTER_PLAN_v1.1.md`.
 | Web: redesigned responsive interface (header with language switch, account menu, mobile drawer and bottom bar, hero, category tiles, closing soon / newest lists, filter sidebar and pagination, two-column detail page), register, sign-in, forgot/reset/verify, dashboard, profile editor, saved, tracker (list and board) with detail page, settings (password, sessions, consents, account deletion), staff panel at `/admin` (English): MFA setup, opportunities with requirement builder, organisations, users and roles, audit log; static pages; 404, error and loading screens | `apps/web`                                       | walked through in a real browser against local TiDB: register, profile, save, track, eligibility, staff MFA, post, publish, appears on the site                                                                                                                  |
 | Auth and account module: Argon2id (19 MiB/t2/p1), opaque session cookie (SHA-256 stored, 14-day sliding / 60-day absolute), signed double-submit CSRF + Origin check, deny-by-default `route()` guard with RBAC permissions, register (anti-enumeration 202, consent events), verify-email, resend, login (generic error, dummy-hash timing path), logout, sessions list/revoke, password change/forgot/reset (revocation per SEC-02), `/me` GET/PATCH, `/me/consents`, `/me/delete` request/status/cancel with 7-day grace and restricted scope (DEL-01/02)                            | `apps/api/src/modules/auth`                      | 8 unit + 14 TiDB integration tests                                                                                                                                                                                                                               |
 
-Totals at last run: 267 unit tests + 20 TiDB tests passing; `tsc` clean in all packages; ESLint clean.
+## Plan v1.2: staff portal, applications with tracking IDs, jobs from the web (2026-11-14)
+
+Plan: `docs/PLAN_v1.2_PORTAL.md`. Migration `0003_portal.sql` (78 base tables).
+
+- **Staff portal** at `/admin` with its own sign-in (`/admin/login`), second factor, navigation, dashboard (queue, counts, recent applications), Applications (filters, search, detail, status change with public or private note, internal note, timeline), Opportunities (now with "where can people apply"), Web listings (sources, last run, refresh, hide), Organisations, Users, Audit log. Every staff write is audited.
+- **Apply on the site**: per opportunity `apply_mode` = `external` / `site` / `both`. A signed-in person applies with a consent tick; the profile and eligibility result at that moment are stored for the reviewers. Each application gets a tracking ID `C2A-XXXX-XXXX`; one application per person per opportunity (applying again returns the same ID). My applications page with timeline and withdraw; public Track page (ID only, no personal data, rate limited).
+- **Jobs from the web**: connectors for Arbeitnow and Remotive (no key needed) and Google Programmable Search (off until `GOOGLE_CSE_API_KEY` and `GOOGLE_CSE_CX` are set). Listings are cached (title, company, place, 500-character snippet, original link), refreshed lazily every 6 hours when the public feed is read or from the portal, and always shown as "From the web, not verified". Staff can hide any listing.
+- Verification: 9 + 6 new unit tests, a 6-test TiDB suite (apply once, duplicate apply, public tracking without personal data, permissions, transitions, private notes, audit rows, withdraw, apply_mode, feed upsert/hide/failure), and a walk through a real browser: register, apply, tracking ID, public track by a lower-case ID with spaces, staff sign-in with MFA, status change shown on the public tracking page, web listings (316 real jobs fetched).
+
+Totals at last run: 190+ unit tests (api 173, eligibility 73, web 10, others 47) + 62 TiDB tests passing; `tsc` clean in all packages; ESLint clean.
 
 ## NOT done (and why)
 

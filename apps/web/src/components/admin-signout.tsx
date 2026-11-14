@@ -10,7 +10,7 @@ export function AdminSignOut() {
       className="btn secondary sm"
       onClick={async () => {
         await callApi('POST', '/api/v1/auth/logout');
-        window.location.assign('/en/sign-in');
+        window.location.assign('/admin/login');
       }}
     >
       <Icon name="logout" size="sm" /> Sign out

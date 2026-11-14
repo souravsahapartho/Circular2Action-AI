@@ -7,8 +7,8 @@ export const metadata = { title: 'Two-factor authentication' };
 
 export default async function Mfa() {
   const me = await getMe();
-  if (!me) redirect('/en/sign-in?next=%2Fadmin');
-  if (!me.staff) redirect('/en');
+  if (!me) redirect('/admin/login');
+  if (!me.staff) redirect('/admin/login');
   if (me.mfa_verified) redirect('/admin');
   return (
     <main id="main" className="container" style={{ padding: '40px 16px', maxWidth: 560 }}>

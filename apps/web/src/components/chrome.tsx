@@ -11,6 +11,9 @@ export type Section =
   | 'home'
   | 'explore'
   | 'search'
+  | 'webjobs'
+  | 'track'
+  | 'applications'
   | 'saved'
   | 'tracker'
   | 'profile'
@@ -31,7 +34,14 @@ function navItems(
       icon: 'briefcase',
       section: 'explore',
     },
+    {
+      href: `/${locale}/web-jobs`,
+      label: dict.nav.webJobs,
+      icon: 'globe',
+      section: 'webjobs',
+    },
     { href: `/${locale}/search`, label: dict.nav.search, icon: 'search', section: 'search' },
+    { href: `/${locale}/track`, label: dict.nav.track, icon: 'file', section: 'track' },
   ];
   if (me) {
     base.push(
@@ -42,6 +52,12 @@ function navItems(
         section: 'dashboard',
       },
       { href: `/${locale}/app/saved`, label: dict.nav.saved, icon: 'bookmark', section: 'saved' },
+      {
+        href: `/${locale}/app/applications`,
+        label: dict.nav.applications,
+        icon: 'file',
+        section: 'applications',
+      },
       { href: `/${locale}/app/tracker`, label: dict.nav.tracker, icon: 'list', section: 'tracker' },
       { href: `/${locale}/app/profile`, label: dict.nav.profile, icon: 'user', section: 'profile' },
       {
@@ -71,8 +87,8 @@ function Header({
   const items = navItems(locale, dict, me);
   const desktop = items.filter((i) =>
     me
-      ? ['explore', 'search', 'saved', 'tracker'].includes(i.section)
-      : ['explore', 'search'].includes(i.section),
+      ? ['explore', 'webjobs', 'search', 'applications', 'tracker'].includes(i.section)
+      : ['explore', 'webjobs', 'search', 'track'].includes(i.section),
   );
   const switchPaths = { bn: `/bn${path}`, en: `/en${path}` };
   return (
@@ -109,6 +125,7 @@ function Header({
                 profile: dict.nav.profile,
                 saved: dict.nav.saved,
                 tracker: dict.nav.tracker,
+                applications: dict.nav.applications,
                 settings: dict.nav.settings,
                 signOut: dict.nav.signOut,
                 signIn: dict.nav.signIn,
@@ -200,6 +217,12 @@ function Footer({ locale, dict }: { locale: Locale; dict: Dictionary }) {
               </li>
               <li>
                 <Link href={`/${locale}/search`}>{dict.nav.search}</Link>
+              </li>
+              <li>
+                <Link href={`/${locale}/web-jobs`}>{dict.footer.webJobs}</Link>
+              </li>
+              <li>
+                <Link href={`/${locale}/track`}>{dict.footer.track}</Link>
               </li>
               <li>
                 <Link href={`/${locale}/app/tracker`}>{dict.nav.tracker}</Link>
