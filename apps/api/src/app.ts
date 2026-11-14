@@ -10,6 +10,8 @@ import type { Mailer } from './modules/email/mailer';
 import type { AuthRepo } from './modules/auth/repo';
 import { guardOptionsFor, registerAuth } from './modules/auth/routes';
 import type { AdminRepo } from './modules/admin/repo';
+import type { AdminInsights } from './modules/admin/insights';
+import { registerAdminInsights } from './modules/admin/insights-routes';
 import type { ApplicationRepo } from './modules/applications/repo';
 import { registerApplications } from './modules/applications/routes';
 import { registerAdmin } from './modules/admin/routes';
@@ -44,6 +46,7 @@ export interface AppDeps {
   applications?: { repo: ApplicationRepo };
   listings?: { repo: ListingRepo };
   recommend?: { service: RecommendService };
+  adminInsights?: { insights: AdminInsights };
 }
 
 /** Build the Fastify app. Routes are added per module; this is the platform skeleton (Phase 0). */
@@ -172,6 +175,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       clock,
       guard,
       ...(deps.recommend ? { activity: deps.recommend.service } : {}),
+    });
+  }
+
+  if (deps.adminInsights && deps.applications) {
+    registerAdminInsights(app, {
+      insights: deps.adminInsights.insights,
+      applications: deps.applications.repo,
+      now: () => clock.now(),
+      guard,
     });
   }
 

@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
+import { ResponsiveDetails } from '@/components/responsive-details';
+import type { Reason } from '@/lib/reasons';
 import { OpportunityList } from '@/components/opportunity-list';
 import { EmptyState, ErrorState, Icon, Pagination } from '@/components/ui';
 import { formatNumber, isLocale } from '@/i18n/config';
@@ -24,10 +26,21 @@ export default async function Explore({
   const sp = await searchParams;
   const category = /^[a-z0-9-]{1,100}$/.test(sp.category ?? '') ? sp.category : undefined;
   const location = /^[a-z0-9-]{1,120}$/.test(sp.location ?? '') ? sp.location : undefined;
-  const sort = sp.sort === 'newest' ? 'newest' : 'deadline';
+  const me0 = await getMe();
+  // signed-in people get the list in "for you" order unless they pick another order
+  const defaultSort = me0 ? 'recommended' : 'deadline';
+  const sort =
+    sp.sort === 'newest'
+      ? 'newest'
+      : sp.sort === 'deadline'
+        ? 'deadline'
+        : sp.sort === 'recommended' && me0
+          ? 'recommended'
+          : defaultSort;
   const page = Math.max(1, Math.min(500, Number.parseInt(sp.page ?? '1', 10) || 1));
 
-  const me = await getMe();
+  const me = me0;
+  const recommended = sort === 'recommended';
   const qs = new URLSearchParams({
     locale,
     sort,
@@ -37,7 +50,11 @@ export default async function Explore({
   if (category) qs.set('category', category);
   if (location) qs.set('location', location);
   const [list, cats, locs, saved] = await Promise.all([
-    apiGet<OpportunitySummary[]>(`/api/v1/opportunities?${qs}`),
+    recommended
+      ? apiGet<Array<OpportunitySummary & { reasons: Reason[] }>>(`/api/v1/me/feed?${qs}`, {
+          auth: true,
+        })
+      : apiGet<OpportunitySummary[]>(`/api/v1/opportunities?${qs}`),
     apiGet<CategoryInfo[]>(`/api/v1/categories?locale=${locale}`),
     apiGet<LocationInfo[]>(`/api/v1/locations?locale=${locale}`),
     me ? apiGet<string[]>('/api/v1/me/saved-ids', { auth: true }) : Promise.resolve(null),
@@ -49,7 +66,7 @@ export default async function Explore({
     const merged = {
       category,
       location,
-      sort: sort === 'deadline' ? undefined : sort,
+      sort: sort === defaultSort ? undefined : sort,
       page: undefined,
       ...over,
     };
@@ -67,13 +84,13 @@ export default async function Explore({
       locale={locale}
       dict={d}
       section="explore"
-      path={`/opportunities${page > 1 || filtered ? `?${new URLSearchParams(Object.fromEntries(Object.entries({ category, location, sort: sort === 'newest' ? 'newest' : undefined, page: page > 1 ? String(page) : undefined }).filter(([, v]) => v) as Array<[string, string]>))}` : ''}`}
+      path={`/opportunities${page > 1 || filtered ? `?${new URLSearchParams(Object.fromEntries(Object.entries({ category, location, sort: sort === defaultSort ? undefined : sort, page: page > 1 ? String(page) : undefined }).filter(([, v]) => v) as Array<[string, string]>))}` : ''}`}
       me={me}
     >
       <h1>{d.explore.title}</h1>
       <div className="explore">
         <aside>
-          <details className="filters" open>
+          <ResponsiveDetails className="filters">
             <summary>
               <Icon name="sliders" /> {d.explore.filters}
             </summary>
@@ -122,6 +139,7 @@ export default async function Explore({
                 <div className="field">
                   <label htmlFor="sort">{d.explore.sort}</label>
                   <select id="sort" name="sort" className="input" defaultValue={sort}>
+                    {me ? <option value="recommended">{d.explore.sortRecommended}</option> : null}
                     <option value="deadline">{d.explore.sortDeadline}</option>
                     <option value="newest">{d.explore.sortNewest}</option>
                   </select>
@@ -138,13 +156,14 @@ export default async function Explore({
                 </div>
               </form>
             </div>
-          </details>
+          </ResponsiveDetails>
         </aside>
 
         <section aria-live="polite">
           {list.kind === 'ok' && list.data.length > 0 ? (
             <>
               <p className="muted tabular">{t(d.explore.count, { n: nf(total) })}</p>
+              {recommended ? <p className="muted small">{d.explore.rankedNote}</p> : null}
               <OpportunityList
                 items={list.data}
                 locale={locale}
@@ -152,6 +171,18 @@ export default async function Explore({
                 now={new Date()}
                 savedIds={savedIds}
                 nextPath={`/${locale}/opportunities`}
+                {...(recommended
+                  ? {
+                      reasons: Object.fromEntries(
+                        (list.data as Array<OpportunitySummary & { reasons?: Reason[] }>).map(
+                          (o) => [o.id, o.reasons ?? []],
+                        ),
+                      ),
+                      categoryNames: Object.fromEntries(
+                        (cats.kind === 'ok' ? cats.data : []).map((c) => [c.slug, c.name]),
+                      ),
+                    }
+                  : {})}
               />
               <Pagination
                 prevHref={page > 1 ? href({ page: String(page - 1) }) : undefined}

@@ -1,6 +1,7 @@
 import { hasPermission, type Role } from '@c2a/contracts';
 import Link from 'next/link';
 import { AdminShell } from '@/components/admin-shell';
+import { AdminCharts, type Analytics } from '@/components/admin-charts';
 import { Alert } from '@/components/ui';
 import { apiGet } from '@/lib/api';
 import { requireStaff } from '@/lib/session';
@@ -50,11 +51,13 @@ export default async function AdminHome() {
   const me = await requireStaff();
   const roles = me.roles as Role[];
   const canApps = hasPermission(roles, 'application.read');
-  const [res, recent] = await Promise.all([
+  const canStats = hasPermission(roles, 'analytics.view');
+  const [res, recent, stats] = await Promise.all([
     apiGet<Overview>('/api/v1/admin/overview', { auth: true }),
     canApps
       ? apiGet<Recent[]>('/api/v1/admin/applications?limit=6', { auth: true })
       : Promise.resolve(null),
+    canStats ? apiGet<Analytics>('/api/v1/admin/analytics', { auth: true }) : Promise.resolve(null),
   ]);
   const o = res.kind === 'ok' ? res.data : null;
   const count = (s: string) => o?.opportunities[s] ?? 0;
@@ -121,6 +124,31 @@ export default async function AdminHome() {
           <span className="small muted">{o?.organizations ?? '–'} organisations</span>
         </div>
       </div>
+
+      <div className="quick-actions" style={{ marginTop: 16 }}>
+        {hasPermission(roles, 'opportunity.write') ? (
+          <Link className="btn secondary" href="/admin/opportunities/new">
+            New opportunity
+          </Link>
+        ) : null}
+        {canApps ? (
+          <a className="btn secondary" href="/api/v1/admin/applications/export">
+            Export applications (CSV)
+          </a>
+        ) : null}
+        {hasPermission(roles, 'system.operate') ? (
+          <Link className="btn secondary" href="/admin/announcements">
+            Send an announcement
+          </Link>
+        ) : null}
+        {hasPermission(roles, 'listing.manage') ? (
+          <Link className="btn secondary" href="/admin/listings">
+            Refresh web jobs
+          </Link>
+        ) : null}
+      </div>
+
+      {stats && stats.kind === 'ok' ? <AdminCharts a={stats.data} /> : null}
 
       {canApps ? (
         <div className="panel-grid two" style={{ marginTop: 16 }}>

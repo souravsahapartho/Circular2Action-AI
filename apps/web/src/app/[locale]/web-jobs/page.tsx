@@ -7,6 +7,7 @@ import { formatNumber, isLocale } from '@/i18n/config';
 import { getDictionary, t } from '@/i18n/dictionaries';
 import { apiGet } from '@/lib/api';
 import { getMe } from '@/lib/session';
+import type { Reason } from '@/lib/reasons';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Jobs from the web' };
@@ -19,7 +20,7 @@ export default async function WebJobs({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ q?: string; source?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; source?: string; page?: string; sort?: string }>;
 }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
@@ -29,19 +30,32 @@ export default async function WebJobs({
   const q = (sp.q ?? '').trim().slice(0, 120);
   const source = SOURCES.includes(sp.source ?? '') ? sp.source : undefined;
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
+  // signed-in people see the jobs that fit their interests first, unless they ask for newest
+  const relevant = me !== null && sp.sort !== 'new';
   const qs = new URLSearchParams({ limit: String(PAGE), offset: String((page - 1) * PAGE) });
   if (q) qs.set('q', q);
   if (source) qs.set('source', source);
-  const [res, sources] = await Promise.all([
-    apiGet<WebJob[]>(`/api/v1/listings?${qs}`),
+  const [res, sources, cats] = await Promise.all([
+    relevant
+      ? apiGet<Array<WebJob & { reasons: Reason[] }>>(`/api/v1/me/web-jobs?${qs}`, { auth: true })
+      : apiGet<WebJob[]>(`/api/v1/listings?${qs}`),
     apiGet<Array<{ id: string; label: string; homepage: string; listings: number }>>(
       '/api/v1/listings/sources',
     ),
+    me
+      ? apiGet<Array<{ slug: string; name: string }>>(`/api/v1/categories?locale=${locale}`)
+      : Promise.resolve(null),
   ]);
   const total = res.kind === 'ok' ? (res.total ?? res.data.length) : 0;
   const link = (over: Record<string, string | undefined>) => {
     const p = new URLSearchParams();
-    const m = { q: q || undefined, source, page: undefined, ...over };
+    const m = {
+      q: q || undefined,
+      source,
+      sort: sp.sort === 'new' ? 'new' : undefined,
+      page: undefined,
+      ...over,
+    };
     for (const [k, v] of Object.entries(m)) if (v) p.set(k, v);
     return `/${locale}/web-jobs${p.toString() ? `?${p}` : ''}`;
   };
@@ -76,6 +90,22 @@ export default async function WebJobs({
             </option>
           ))}
         </select>
+        {me ? (
+          <>
+            <label htmlFor="wj-sort" className="sr-only">
+              {d.webJobs.sort}
+            </label>
+            <select
+              id="wj-sort"
+              name="sort"
+              className="input"
+              defaultValue={relevant ? 'relevant' : 'new'}
+            >
+              <option value="relevant">{d.webJobs.sortRelevant}</option>
+              <option value="new">{d.webJobs.sortNew}</option>
+            </select>
+          </>
+        ) : null}
         <button className="btn" type="submit">
           <Icon name="search" /> {d.webJobs.search}
         </button>
@@ -90,7 +120,21 @@ export default async function WebJobs({
           </p>
           <div className="stack">
             {res.data.map((j) => (
-              <WebJobCard key={j.id} job={j} locale={locale} d={d} tracked={me !== null} />
+              <WebJobCard
+                key={j.id}
+                job={j}
+                locale={locale}
+                d={d}
+                tracked={me !== null}
+                {...(relevant
+                  ? {
+                      reasons: (j as WebJob & { reasons?: Reason[] }).reasons ?? [],
+                      categoryNames: Object.fromEntries(
+                        (cats && cats.kind === 'ok' ? cats.data : []).map((c) => [c.slug, c.name]),
+                      ),
+                    }
+                  : {})}
+              />
             ))}
           </div>
           <Pagination

@@ -375,63 +375,14 @@ export class RecommendService {
       })
       .filter((x): x is RecommendedOpportunity => x !== null);
 
-    // web jobs: words from explicit keywords, interest names and learned words
-    const interestWords = prefs.categories.flatMap((c) => tokenize(c.replace(/-/g, ' ')));
-    const rows = await this.db.query<
-      Row & {
-        id: string;
-        source: string;
-        title: string;
-        company: string | null;
-        location: string | null;
-        snippet: string | null;
-        url: string;
-        tags: unknown;
-        posted_at: Date | null;
-      }
-    >(
-      `SELECT id, source, title, company, location, snippet, url, tags, posted_at FROM external_listings
-       WHERE hidden = 0 ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT 400`,
-    );
-    const webJobs: RecommendedWebJob[] = rows
-      .map((r) => {
-        const tags = json<string[]>(r.tags, []);
-        const s = scoreWebJob(
-          {
-            id: String(r.id),
-            title: r.title,
-            company: r.company,
-            location: r.location,
-            snippet: r.snippet,
-            tags,
-            posted_at: r.posted_at,
-          },
-          prefs,
-          affinity,
-          now,
-          interestWords,
-        );
-        return {
-          id: String(r.id),
-          source: r.source,
-          title: r.title,
-          company: r.company,
-          location: r.location,
-          snippet: r.snippet,
-          url: r.url,
-          tags,
-          posted_at: r.posted_at ? r.posted_at.toISOString() : null,
-          score: s.score,
-          reasons: s.reasons,
-        };
-      })
+    const webJobs = (await this.rankedWeb(prefs, affinity, now, {}))
       .filter((j) => j.reasons.some((x) => x.code === 'keyword'))
-      .sort((a, b) => b.score - a.score)
       .slice(0, 6);
 
     return {
       opportunities,
       web_jobs: webJobs,
+      top_categories: this.topCategories(prefs, affinity),
       personalised:
         prefs.personalize &&
         (events.length > 0 || prefs.categories.length + prefs.keywords.length > 0),
@@ -667,5 +618,184 @@ export class RecommendService {
       { u: userId, now, ids },
     );
     return res.affectedRows;
+  }
+
+  /** Category slugs this person leans towards: their explicit choices first, then by activity. */
+  topCategories(prefs: Preferences, affinity: Affinity | null): string[] {
+    const fromActivity = affinity
+      ? [...affinity.category.entries()].sort((x, y) => y[1] - x[1]).map(([slug]) => slug)
+      : [];
+    return [...new Set([...prefs.categories, ...fromActivity])].slice(0, 6);
+  }
+
+  /** Every visible web job scored for this person, best first (then newest). */
+  private async rankedWeb(
+    prefs: Preferences,
+    affinity: Affinity | null,
+    now: Date,
+    f: { q?: string; source?: string },
+  ): Promise<RecommendedWebJob[]> {
+    const where = ['hidden = 0'];
+    const params: Record<string, unknown> = {};
+    if (f.source) {
+      where.push('source = :source');
+      params.source = f.source;
+    }
+    if (f.q) {
+      where.push(
+        '(LOWER(title) LIKE :like OR LOWER(company) LIKE :like OR LOWER(snippet) LIKE :like OR LOWER(location) LIKE :like)',
+      );
+      params.like = `%${f.q.toLowerCase().replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+    }
+    const rows = await this.db.query<
+      Row & {
+        id: string;
+        source: string;
+        title: string;
+        company: string | null;
+        location: string | null;
+        snippet: string | null;
+        url: string;
+        tags: unknown;
+        posted_at: Date | null;
+      }
+    >(
+      `SELECT id, source, title, company, location, snippet, url, tags, posted_at FROM external_listings
+       WHERE ${where.join(' AND ')} ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT 600`,
+      params,
+    );
+    const interestWords = prefs.categories.flatMap((c) => tokenize(c.replace(/-/g, ' ')));
+    return rows
+      .map((r) => {
+        const tags = json<string[]>(r.tags, []);
+        const sc = scoreWebJob(
+          {
+            id: String(r.id),
+            title: r.title,
+            company: r.company,
+            location: r.location,
+            snippet: r.snippet,
+            tags,
+            posted_at: r.posted_at,
+          },
+          prefs,
+          affinity,
+          now,
+          interestWords,
+        );
+        return {
+          id: String(r.id),
+          source: r.source,
+          title: r.title,
+          company: r.company,
+          location: r.location,
+          snippet: r.snippet,
+          url: r.url,
+          tags,
+          posted_at: r.posted_at ? r.posted_at.toISOString() : null,
+          score: sc.score,
+          reasons: sc.reasons,
+        };
+      })
+      .sort((x, y) => y.score - x.score || (y.posted_at ?? '').localeCompare(x.posted_at ?? ''));
+  }
+
+  /** The whole web jobs list ordered by relevance to this person (used by the web jobs page). */
+  async webFeed(userId: string, f: { q?: string; source?: string; limit: number; offset: number }) {
+    const now = this.clock.now();
+    const prefs = await this.getPreferences(userId);
+    const events = prefs.personalize ? await this.events(userId, now) : [];
+    const affinity = prefs.personalize ? buildAffinity(events, now) : null;
+    const ranked = await this.rankedWeb(prefs, affinity, now, {
+      ...(f.q ? { q: f.q } : {}),
+      ...(f.source ? { source: f.source } : {}),
+    });
+    return {
+      items: ranked.slice(f.offset, f.offset + f.limit),
+      total: ranked.length,
+      personalised: ranked.some((r) => r.reasons.some((x) => x.code === 'keyword')),
+    };
+  }
+
+  /**
+   * The explore list in "for you" order: every open opportunity (saved ones included) with its score and reasons,
+   * filtered by category or place, paged.
+   */
+  async feed(
+    userId: string,
+    locale: Locale,
+    f: { category?: string; location?: string; limit: number; offset: number },
+  ) {
+    const now = this.clock.now();
+    const { prefs, events, ranked } = await this.scoredFor(userId, now, {
+      exclude: false,
+      limit: 500,
+    });
+    const list = ranked.filter(
+      (r) =>
+        (!f.category || r.category_slug === f.category) &&
+        (!f.location || r.location_slug === f.location),
+    );
+    const page = list.slice(f.offset, f.offset + f.limit);
+    const summaries = await this.opportunities.summaries(
+      page.map((p) => p.id),
+      locale,
+      now,
+    );
+    const byId = new Map(summaries.map((x) => [x.id, x]));
+    const items = page
+      .map((p) => {
+        const sm = byId.get(p.id);
+        return sm ? { ...sm, score: p.score, reasons: p.reasons } : null;
+      })
+      .filter((x): x is RecommendedOpportunity => x !== null);
+    return {
+      items,
+      total: list.length,
+      personalised:
+        prefs.personalize &&
+        (events.length > 0 || prefs.categories.length + prefs.keywords.length > 0),
+    };
+  }
+
+  /** Similar opportunities for a detail page: same kind and place, shared words in the title. Needs no account. */
+  async similar(opportunityId: string, locale: Locale, limit = 4) {
+    const now = this.clock.now();
+    const [base] = await this.db.query<OppRow>(
+      `SELECT o.id, o.slug, o.title, o.title_alt, o.summary_en, o.summary_bn, o.deadline_at, o.published_at,
+              c.slug AS cat,
+              (SELECT l.slug FROM opportunity_locations ol JOIN locations l ON l.id = ol.location_id
+                 WHERE ol.opportunity_id = o.id ORDER BY l.id LIMIT 1) AS loc
+       FROM opportunities o JOIN opportunity_categories c ON c.id = o.category_id
+       WHERE o.id = :id AND o.publication_status = 'published'`,
+      { id: opportunityId },
+    );
+    if (!base) return [];
+    const words = new Set([...tokenize(base.title), ...tokenize(base.title_alt)]);
+    const pool = (await this.candidates(now, 300)).filter((c) => String(c.id) !== String(base.id));
+    const scored = pool
+      .map((c) => {
+        const overlap = [...new Set([...tokenize(c.title), ...tokenize(c.title_alt)])].filter((w) =>
+          words.has(w),
+        ).length;
+        const score =
+          (c.cat === base.cat ? 3 : 0) +
+          (c.loc && c.loc === base.loc ? 1 : 0) +
+          Math.min(3, overlap * 1.2);
+        return { id: String(c.id), score, deadline: c.deadline_at };
+      })
+      .filter((x) => x.score >= 3)
+      .sort(
+        (x, y) =>
+          y.score - x.score ||
+          (x.deadline?.getTime() ?? Infinity) - (y.deadline?.getTime() ?? Infinity) ||
+          x.id.localeCompare(y.id),
+      )
+      .slice(0, limit);
+    return this.opportunities.summaries(
+      scored.map((x) => x.id),
+      locale,
+      now,
+    );
   }
 }

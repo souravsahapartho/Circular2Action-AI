@@ -27,16 +27,38 @@ const STAFF_ROLES = [
 export function RoleEditor({
   users,
   canManage,
+  canModerate = false,
   meId,
 }: {
   users: UserRow[];
   canManage: boolean;
+  canModerate?: boolean;
   meId: string;
 }) {
   const [rows, setRows] = useState(users);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<string[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function setStatus(u: UserRow, status: 'active' | 'suspended') {
+    if (
+      status === 'suspended' &&
+      !window.confirm(
+        `Suspend ${u.email}? They are signed out everywhere and cannot sign in until restored.`,
+      )
+    ) {
+      return;
+    }
+    setMsg(null);
+    const out = await callApi('POST', `/api/v1/admin/users/${u.id}/status`, { status });
+    if (out.ok) {
+      setRows((p) => p.map((r) => (r.id === u.id ? { ...r, status } : r)));
+      setMsg({
+        ok: true,
+        text: status === 'suspended' ? `${u.email} is suspended.` : `${u.email} is active again.`,
+      });
+    } else setMsg({ ok: false, text: out.error?.message ?? 'Could not change the account.' });
+  }
 
   async function save(u: UserRow) {
     setMsg(null);
@@ -60,7 +82,7 @@ export function RoleEditor({
               <th>Roles</th>
               <th>Joined</th>
               <th>Last sign-in</th>
-              {canManage ? <th /> : null}
+              {canManage || canModerate ? <th>Actions</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -103,7 +125,7 @@ export function RoleEditor({
                 </td>
                 <td className="tabular">{u.created_at.slice(0, 10)}</td>
                 <td className="tabular">{u.last_login_at ? u.last_login_at.slice(0, 10) : '–'}</td>
-                {canManage ? (
+                {canManage || canModerate ? (
                   <td>
                     {editing === u.id ? (
                       <div className="row-flex">
@@ -119,19 +141,37 @@ export function RoleEditor({
                         </button>
                       </div>
                     ) : (
-                      <button
-                        className="btn secondary sm"
-                        type="button"
-                        onClick={() => {
-                          setEditing(u.id);
-                          setDraft(u.roles.filter((r) => r !== 'user'));
-                        }}
-                        title={
-                          u.id === meId ? 'You cannot remove your own super admin role' : undefined
-                        }
-                      >
-                        Edit roles
-                      </button>
+                      <>
+                        {canManage ? (
+                          <button
+                            className="btn secondary sm"
+                            type="button"
+                            onClick={() => {
+                              setEditing(u.id);
+                              setDraft(u.roles.filter((r) => r !== 'user'));
+                            }}
+                            title={
+                              u.id === meId
+                                ? 'You cannot remove your own super admin role'
+                                : undefined
+                            }
+                          >
+                            Edit roles
+                          </button>
+                        ) : null}
+                        {canModerate && u.id !== meId && u.status !== 'pending_deletion' ? (
+                          <button
+                            className={`btn sm ${u.status === 'suspended' ? '' : 'danger'}`}
+                            type="button"
+                            style={{ marginLeft: 6 }}
+                            onClick={() =>
+                              void setStatus(u, u.status === 'suspended' ? 'active' : 'suspended')
+                            }
+                          >
+                            {u.status === 'suspended' ? 'Restore' : 'Suspend'}
+                          </button>
+                        ) : null}
+                      </>
                     )}
                   </td>
                 ) : null}

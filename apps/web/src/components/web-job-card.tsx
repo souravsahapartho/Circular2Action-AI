@@ -1,5 +1,6 @@
 import { formatDate, type Locale } from '@/i18n/config';
 import { t, type Dictionary } from '@/i18n/dictionaries';
+import { reasonText, type Reason } from '@/lib/reasons';
 import { safeHref } from '@/lib/urls';
 import { TrackedExternalLink } from './beacons';
 import { Icon } from './ui';
@@ -28,13 +29,20 @@ export function WebJobCard({
   locale,
   d,
   tracked = false,
+  reasons,
+  categoryNames,
 }: {
   job: WebJob;
   locale: Locale;
   d: Dictionary;
   /** record clicks as activity (signed-in pages only; the API ignores it when personalisation is off) */
   tracked?: boolean;
+  reasons?: Reason[];
+  categoryNames?: Record<string, string>;
 }) {
+  const chips = (reasons ?? [])
+    .map((r) => reasonText(d, r, categoryNames ?? {}))
+    .filter((x): x is string => x !== null);
   const href = safeHref(job.url);
   const source = SOURCE_LABEL[job.source] ?? job.source;
   return (
@@ -55,6 +63,15 @@ export function WebJobCard({
           : ''}
       </p>
       {job.snippet ? <p className="web-job-snippet">{job.snippet}</p> : null}
+      {chips.length > 0 ? (
+        <div className="reasons" aria-label={d.forYou.why}>
+          {chips.map((x) => (
+            <span key={x} className="reason">
+              <Icon name="check" size="sm" /> {x}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <div className="row-flex" style={{ justifyContent: 'space-between', marginTop: 8 }}>
         <span className="muted small">{d.webJobs.notice}</span>
         {href ? (

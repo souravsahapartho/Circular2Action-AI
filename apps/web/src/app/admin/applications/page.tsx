@@ -1,8 +1,10 @@
+import { hasPermission, type Role } from '@c2a/contracts';
 import Link from 'next/link';
 import { AdminShell } from '@/components/admin-shell';
 import { Alert } from '@/components/ui';
 import { apiGet } from '@/lib/api';
 import { requireStaff } from '@/lib/session';
+import { ApplicationsTable } from './applications-table';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Applications' };
@@ -36,23 +38,7 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: 'Not selected',
   withdrawn: 'Withdrawn',
 };
-const ELIG: Record<string, string> = {
-  eligible: 'Eligible',
-  not_eligible: 'Not eligible',
-  needs_verification: 'Needs verification',
-  insufficient_information: 'Insufficient information',
-};
 const PAGE = 25;
-
-const fmt = (iso: string) =>
-  new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Dhaka',
-  }).format(new Date(iso));
 
 export default async function AdminApplications({
   searchParams,
@@ -79,7 +65,19 @@ export default async function AdminApplications({
     return `/admin/applications${p.toString() ? `?${p}` : ''}`;
   };
   return (
-    <AdminShell me={me} active="applications" title="Applications">
+    <AdminShell
+      me={me}
+      active="applications"
+      title="Applications"
+      actions={
+        <a
+          className="btn secondary"
+          href={`/api/v1/admin/applications/export${status || q ? `?${new URLSearchParams({ ...(status ? { status } : {}), ...(q ? { q } : {}) })}` : ''}`}
+        >
+          Export CSV
+        </a>
+      }
+    >
       <div className="chips" aria-label="Filter by status">
         <Link className="chip" href={link({ status: undefined })} aria-current={!status}>
           All <b>{all}</b>
@@ -117,52 +115,10 @@ export default async function AdminApplications({
           </p>
         </div>
       ) : (
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Tracking ID</th>
-                <th>Applicant</th>
-                <th>Opportunity</th>
-                <th>Eligibility</th>
-                <th>Status</th>
-                <th>Submitted</th>
-              </tr>
-            </thead>
-            <tbody>
-              {res.data.map((a) => (
-                <tr key={a.id}>
-                  <td>
-                    <Link href={`/admin/applications/${a.id}`}>
-                      <code>{a.tracking_code}</code>
-                    </Link>
-                  </td>
-                  <td>
-                    {a.applicant_name}
-                    <br />
-                    <span className="muted small">{a.applicant_email}</span>
-                  </td>
-                  <td>
-                    {a.opportunity.title}
-                    <br />
-                    <span className="muted small">{a.opportunity.organization}</span>
-                  </td>
-                  <td className="small">
-                    {a.eligibility_status
-                      ? (ELIG[a.eligibility_status] ?? a.eligibility_status)
-                      : '–'}
-                  </td>
-                  <td>
-                    <span className={`pill pill-${a.status}`}>
-                      {STATUS_LABEL[a.status] ?? a.status}
-                    </span>
-                  </td>
-                  <td className="small">{fmt(a.submitted_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ApplicationsTable
+          rows={res.data}
+          canManage={hasPermission(me.roles as Role[], 'application.manage')}
+        />
       )}
       {res.kind === 'ok' && total > PAGE ? (
         <nav className="pagination" aria-label="Pagination" style={{ marginTop: 16 }}>

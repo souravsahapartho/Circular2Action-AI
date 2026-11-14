@@ -1,3 +1,4 @@
+import { hasPermission, type Role } from '@c2a/contracts';
 import { AdminShell } from '@/components/admin-shell';
 import { Alert } from '@/components/ui';
 import { apiGet } from '@/lib/api';
@@ -37,7 +38,12 @@ export default async function Users({ searchParams }: { searchParams: Promise<{ 
       {res.kind !== 'ok' ? (
         <Alert kind="error">Could not load users. Reload in a moment.</Alert>
       ) : (
-        <RoleEditor users={res.data} canManage={canManage} meId={me.id} />
+        <RoleEditor
+          users={res.data}
+          canManage={canManage}
+          canModerate={hasPermission(me.roles as Role[], 'user.moderate')}
+          meId={me.id}
+        />
       )}
     </AdminShell>
   );

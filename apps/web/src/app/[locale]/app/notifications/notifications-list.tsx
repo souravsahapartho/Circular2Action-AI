@@ -56,6 +56,7 @@ export function NotificationsList({
       status?: string;
     };
     const title = titleFor(String(p.title ?? ''), p.title_alt ?? null, locale);
+    if (n.type === 'announcement') return String((n.params as { title?: string }).title ?? '');
     if (n.type === 'application_update') {
       return t(labels.application_update, {
         code: String(p.tracking_code ?? ''),
@@ -94,6 +95,11 @@ export function NotificationsList({
                 {n.type === 'deadline_reminder' && p.slot ? (
                   <p className="muted small" style={{ margin: 0 }}>
                     {(labels as Record<string, string>)[`slot_${p.slot}`]}
+                  </p>
+                ) : null}
+                {n.type === 'announcement' && (n.params as { message?: string }).message ? (
+                  <p className="muted small" style={{ margin: 0 }}>
+                    {(n.params as { message?: string }).message}
                   </p>
                 ) : null}
                 {n.type === 'application_update' && p.note ? (

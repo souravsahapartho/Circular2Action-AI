@@ -56,6 +56,7 @@ export function registerRecommend(
   const { service, clock, guard } = deps;
   const beacon = new RateLimiter({ capacity: 120, refillPerSecond: 2 });
   const heavy = new RateLimiter(LIMITS.search);
+  const similarByIp = new RateLimiter(LIMITS.publicGet);
   const r = (
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     url: string,
@@ -146,5 +147,68 @@ export function registerRecommend(
     const b = readBody.parse(readJson(req));
     const n = await service.markRead(req.auth!.userId, b.all ? 'all' : (b.ids ?? []));
     return { data: { updated: n, unread: await service.unreadCount(req.auth!.userId) } };
+  });
+
+  r('GET', '/api/v1/me/feed', async (req) => {
+    limited(heavy, req.auth!.userId);
+    const q = z
+      .object({
+        locale: z.enum(['bn', 'en']).default('bn'),
+        category: slug.optional(),
+        location: slug.optional(),
+        limit: z.coerce.number().int().min(1).max(50).default(20),
+        offset: z.coerce.number().int().min(0).max(1000).default(0),
+      })
+      .parse(req.query);
+    const out = await service.feed(req.auth!.userId, q.locale, {
+      ...(q.category ? { category: q.category } : {}),
+      ...(q.location ? { location: q.location } : {}),
+      limit: q.limit,
+      offset: q.offset,
+    });
+    return {
+      data: out.items,
+      meta: { total: out.total, limit: q.limit, offset: q.offset, personalised: out.personalised },
+    };
+  });
+
+  r('GET', '/api/v1/me/web-jobs', async (req) => {
+    limited(heavy, req.auth!.userId);
+    const q = z
+      .object({
+        q: z.string().trim().max(120).optional(),
+        source: z.enum(['arbeitnow', 'remotive', 'google']).optional(),
+        limit: z.coerce.number().int().min(1).max(50).default(20),
+        offset: z.coerce.number().int().min(0).max(600).default(0),
+      })
+      .parse(req.query);
+    const out = await service.webFeed(req.auth!.userId, {
+      ...(q.q ? { q: q.q } : {}),
+      ...(q.source ? { source: q.source } : {}),
+      limit: q.limit,
+      offset: q.offset,
+    });
+    return {
+      data: out.items,
+      meta: { total: out.total, limit: q.limit, offset: q.offset, personalised: out.personalised },
+    };
+  });
+
+  route(app, guard, {
+    method: 'GET',
+    url: '/api/v1/opportunities/:id/similar',
+    access: 'public',
+    handler: async (req) => {
+      limited(similarByIp, req.ip);
+      const q = z
+        .object({
+          locale: z.enum(['bn', 'en']).default('bn'),
+          limit: z.coerce.number().int().min(1).max(8).default(4),
+        })
+        .parse(req.query);
+      return {
+        data: await service.similar(bigintId((req.params as { id: string }).id), q.locale, q.limit),
+      };
+    },
   });
 }

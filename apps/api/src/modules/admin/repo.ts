@@ -208,10 +208,15 @@ export class AdminRepo {
         publication_status: string;
         deadline_at: Date | null;
         updated_at: Date;
+        apply_mode: string;
+        applications: number;
+        saves: number;
       }
     >(
       `SELECT o.id, o.slug, o.title, org.name_en AS org_en, org.name_bn AS org_bn, c.slug AS cat,
-              o.publication_status, o.deadline_at, o.updated_at
+              o.publication_status, o.deadline_at, o.updated_at, o.apply_mode,
+              (SELECT COUNT(*) FROM site_applications a WHERE a.opportunity_id = o.id) AS applications,
+              (SELECT COUNT(*) FROM saved_opportunities sv WHERE sv.opportunity_id = o.id) AS saves
        FROM opportunities o JOIN organizations org ON org.id = o.organization_id
          JOIN opportunity_categories c ON c.id = o.category_id
        ${w} ORDER BY o.updated_at DESC, o.id DESC LIMIT :limit OFFSET :offset`,
@@ -232,6 +237,9 @@ export class AdminRepo {
         publication_status: r.publication_status,
         deadline_at: r.deadline_at ? r.deadline_at.toISOString() : null,
         updated_at: r.updated_at.toISOString(),
+        apply_mode: r.apply_mode,
+        applications: Number(r.applications),
+        saves: Number(r.saves),
       })),
     };
   }

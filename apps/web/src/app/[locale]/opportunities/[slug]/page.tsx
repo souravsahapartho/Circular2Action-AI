@@ -15,7 +15,8 @@ import {
 } from '@/components/ui';
 import { formatNumber, isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
-import { apiGet, idFromSlug, type OpportunityDetail } from '@/lib/api';
+import { apiGet, idFromSlug, type OpportunityDetail, type OpportunitySummary } from '@/lib/api';
+import { OpportunityList } from '@/components/opportunity-list';
 import { getMe } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +31,7 @@ export default async function Detail({
   const d = getDictionary(locale);
   const id = idFromSlug(slug);
   const me = await getMe();
-  const [res, savedIds, apps] = await Promise.all([
+  const [res, savedIds, apps, similar] = await Promise.all([
     id
       ? apiGet<OpportunityDetail>(`/api/v1/opportunities/${id}?locale=${locale}`)
       : Promise.resolve({ kind: 'not_found' } as const),
@@ -39,6 +40,9 @@ export default async function Detail({
       ? apiGet<Array<{ id: string; opportunity_id: string | null }>>('/api/v1/me/applications', {
           auth: true,
         })
+      : Promise.resolve(null),
+    id
+      ? apiGet<OpportunitySummary[]>(`/api/v1/opportunities/${id}/similar?locale=${locale}&limit=3`)
       : Promise.resolve(null),
   ]);
   const path = `/opportunities/${slug}`;
@@ -201,6 +205,21 @@ export default async function Detail({
           </div>
         </aside>
       </div>
+      {similar && similar.kind === 'ok' && similar.data.length > 0 ? (
+        <section className="section" aria-labelledby="similar-h">
+          <div className="section-head">
+            <h2 id="similar-h">{d.detail.similar}</h2>
+          </div>
+          <OpportunityList
+            items={similar.data}
+            locale={locale}
+            dict={d}
+            now={now}
+            savedIds={me ? new Set(savedIds && savedIds.kind === 'ok' ? savedIds.data : []) : null}
+            nextPath={`/${locale}${path}`}
+          />
+        </section>
+      ) : null}
     </Page>
   );
 }

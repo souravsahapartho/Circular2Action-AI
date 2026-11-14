@@ -4,6 +4,7 @@ import { databaseCheck } from './db/readiness';
 import { AuthRepo } from './modules/auth/repo';
 import { LogMailer } from './modules/email/mailer';
 import { AdminRepo } from './modules/admin/repo';
+import { AdminInsights } from './modules/admin/insights';
 import { ApplicationRepo } from './modules/applications/repo';
 import { ListingRepo } from './modules/listings/repo';
 import { buildConnectors } from './modules/listings/sources';
@@ -34,6 +35,7 @@ async function main(): Promise<void> {
           recommend: { service: new RecommendService(db, meRepo!, oppRepo!, systemClock) },
           admin: { repo: new AdminRepo(db) },
           applications: { repo: new ApplicationRepo(db) },
+          adminInsights: { insights: new AdminInsights(db, systemClock) },
           listings: {
             repo: new ListingRepo(
               db,

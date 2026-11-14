@@ -50,6 +50,13 @@ Plan: addendum in `docs/PLAN_v1.2_PORTAL.md`. Migration `0004_interests.sql` (80
 - Bugs found by the tests and the browser walk-through and fixed: Bangla words were split at vowel signs in keyword matching (marks are not letters), the interests form sent a field the API refused, web job snippets from double-encoded HTML showed raw tags.
 - Verification: 14 scoring unit tests, 9 TiDB tests (preferences, activity de-duplication, personalise off, clear, automatic save/track recording, suggestions differ by person, explicit interests, cold start, alert dedupe and read state, reminders per slot, publish fan-out to the right person only, application update notification, deletion with the account); real browser: set interests, saw reasons, bell "1 unread", notification in Bangla.
 
+## Phones, personalised lists everywhere, powerful staff portal (2026-11-14)
+
+- **Phones**: the menu button was pushed off the screen because the header was 50 px wider than a phone; the language switch now lives in the drawer on small screens, the drawer is rendered outside the header (a blurred header would have trapped it), filters start collapsed on phones, forms use 16 px text and 44 px buttons, cards and grids use `min-width: 0` so nothing can widen the page. Checked at 375 px on the home page, explore, detail, dashboard, tracker, profile, applications and the whole staff portal.
+- **Personalised everywhere** (same transparent score): Explore opens in "For you" order for signed-in people (with reason chips, still filterable, other orders one click away); Web jobs open in "most relevant to me" order; the home page orders the kind tiles and the hero preview by what the person likes; opportunity pages show similar opportunities (public).
+- **Staff portal, more powerful**: analytics dashboard (new accounts and applications per day, application funnel, by category, what people do, most wanted opportunities, web jobs by source), applications CSV export (formula-safe, audited), bulk status change with a note, suspend and restore accounts (signs the person out, audited), announcements to everyone or to people interested in one kind (notifications, audited), applications and saves per opportunity with publish and unpublish from the list. On phones every table becomes a stack of cards and the side menu is a drawer.
+- Tests: 10 new TiDB tests (personalised feed, web jobs order, similar, analytics, export, bulk, suspend, broadcast, counts, CSV helpers) on top of the earlier suites: 81 TiDB tests, 187 API unit tests.
+
 Totals at last run: unit tests api 187, eligibility 73, web 10, others 47; TiDB suite 71 tests; `tsc` clean; ESLint clean.
 
 ## NOT done (and why)

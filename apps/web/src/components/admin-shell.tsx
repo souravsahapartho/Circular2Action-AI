@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { apiGet } from '@/lib/api';
 import type { Me } from '@/lib/session';
+import { AdminDrawer } from './admin-drawer';
 import { AdminSignOut } from './admin-signout';
 import { Icon, Logo, type IconName } from './ui';
 
@@ -45,6 +46,13 @@ const GROUPS: Array<{ title: string; items: NavItem[] }> = [
         icon: 'globe',
         perm: 'listing.manage',
         key: 'listings',
+      },
+      {
+        href: '/admin/announcements',
+        label: 'Announcements',
+        icon: 'info',
+        perm: 'system.operate',
+        key: 'announcements',
       },
     ],
   },
@@ -103,7 +111,7 @@ export async function AdminShell({
   }
   return (
     <div className="admin-shell">
-      <aside className="admin-side">
+      <AdminDrawer>
         <Logo locale="en" />
         <span className="portal-tag">Staff portal</span>
         <nav aria-label="Staff navigation">
@@ -144,7 +152,7 @@ export async function AdminShell({
           </p>
           <AdminSignOut />
         </div>
-      </aside>
+      </AdminDrawer>
       <div className="admin-main">
         <main id="main" tabIndex={-1} style={{ padding: 0 }}>
           <div className="admin-topbar">

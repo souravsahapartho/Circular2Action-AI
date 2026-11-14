@@ -423,6 +423,23 @@ export class ApplicationRepo {
     });
   }
 
+  async auditExport(
+    actor: { id: string; role: string },
+    rows: number,
+    requestId?: string,
+  ): Promise<void> {
+    await this.db.execute(
+      `INSERT INTO audit_logs (actor_id, actor_role, action, target_type, metadata, request_id)
+       VALUES (:a, :r, 'application.export', 'site_application', :meta, :req)`,
+      {
+        a: actor.id,
+        r: actor.role.slice(0, 32),
+        meta: JSON.stringify({ rows }),
+        req: requestId?.slice(0, 40) ?? null,
+      },
+    );
+  }
+
   async setAdminNote(
     id: string,
     note: string | null,

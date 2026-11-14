@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
-import { ForYou } from '@/components/for-you';
+import { ForYou, loadRecommendations } from '@/components/for-you';
 import { OpportunityList } from '@/components/opportunity-list';
 import { DeadlineChip, Icon, type IconName } from '@/components/ui';
 import { WebJobCard, type WebJob } from '@/components/web-job-card';
@@ -17,12 +17,13 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   if (!isLocale(locale)) notFound();
   const d = getDictionary(locale);
   const me = await getMe();
-  const [cats, soon, newest, saved, web] = await Promise.all([
+  const [cats, soon, newest, saved, web, recs] = await Promise.all([
     apiGet<CategoryInfo[]>(`/api/v1/categories?locale=${locale}`),
     apiGet<OpportunitySummary[]>(`/api/v1/opportunities?locale=${locale}&limit=4`),
     apiGet<OpportunitySummary[]>(`/api/v1/opportunities?locale=${locale}&limit=4&sort=newest`),
     me ? apiGet<string[]>('/api/v1/me/saved-ids', { auth: true }) : Promise.resolve(null),
     apiGet<WebJob[]>('/api/v1/listings?limit=4', { timeoutMs: 8000 }),
+    me ? loadRecommendations(locale, 5) : Promise.resolve(null),
   ]);
   const savedIds = me ? new Set(saved && saved.kind === 'ok' ? saved.data : []) : null;
   const total = cats.kind === 'ok' ? cats.data.reduce((n, c) => n + c.count, 0) : null;
@@ -47,9 +48,21 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       text: d.home.tileScholarshipsText,
     },
   ];
+  const lean = recs?.top_categories ?? [];
+  tiles.sort(
+    (a, b) =>
+      (lean.indexOf(a.slug) === -1 ? 99 : lean.indexOf(a.slug)) -
+      (lean.indexOf(b.slug) === -1 ? 99 : lean.indexOf(b.slug)),
+  );
   const countFor = (slug: string) =>
     cats.kind === 'ok' ? nf(cats.data.find((c) => c.slug === slug)?.count ?? 0) : '–';
-  const preview = soon.kind === 'ok' ? soon.data.slice(0, 3) : [];
+  const preview =
+    recs && recs.opportunities.length > 0
+      ? recs.opportunities.slice(0, 3)
+      : soon.kind === 'ok'
+        ? soon.data.slice(0, 3)
+        : [];
+  const previewTitle = recs && recs.opportunities.length > 0 ? d.nav.forYou : d.home2.previewTitle;
   const features: Array<{ icon: IconName; title: string; text: string }> = [
     { icon: 'check', title: d.home2.f1Title, text: d.home2.f1Text },
     { icon: 'sliders', title: d.home2.f2Title, text: d.home2.f2Text },
@@ -129,7 +142,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             </ul>
           </div>
 
-          <div className="hero2-visual" aria-label={d.home2.previewTitle}>
+          <div className="hero2-visual" aria-label={previewTitle}>
             <div className="float-chip c1">
               <Icon name="briefcase" size="sm" /> <strong>{nf(total)}</strong>{' '}
               <span>{d.home2.statsOpen}</span>
@@ -140,7 +153,11 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             </div>
             <div className="preview-stack">
               <p className="preview-title">
-                <Icon name="clock" size="sm" /> {d.home2.previewTitle}
+                <Icon
+                  name={recs && recs.opportunities.length > 0 ? 'sliders' : 'clock'}
+                  size="sm"
+                />{' '}
+                {previewTitle}
               </p>
               {preview.length > 0 ? (
                 preview.map((o, i) => (
@@ -229,6 +246,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             savedIds={savedIds ?? new Set()}
             nextPath={`/${locale}`}
             categoryNames={categoryNames}
+            initial={recs}
             limit={5}
           />
         ) : (

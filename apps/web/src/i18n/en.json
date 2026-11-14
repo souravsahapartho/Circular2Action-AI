@@ -129,7 +129,9 @@
     "jobs": "Jobs",
     "internships": "Internships",
     "scholarships": "Scholarships",
-    "categories": "Categories"
+    "categories": "Categories",
+    "sortRecommended": "For you",
+    "rankedNote": "Ordered for you: your interests and activity first."
   },
   "search": {
     "title": "Search",
@@ -164,7 +166,8 @@
     "actions": "Your next steps",
     "applyNow": "Apply now",
     "noApplyLink": "The application link has not been added yet. Follow the official circular.",
-    "howToApplyLink": "How to apply"
+    "howToApplyLink": "How to apply",
+    "similar": "Similar opportunities"
   },
   "eligibility": {
     "title": "Eligibility result",
@@ -535,7 +538,10 @@
     "homeTitle": "Fresh from the web",
     "homeText": "Automatically collected from open job feeds. Not verified; apply on the original site.",
     "unavailable": "The web jobs feed is not available right now.",
-    "apply": "Apply on original site"
+    "apply": "Apply on original site",
+    "sort": "Order",
+    "sortRelevant": "Most relevant to me",
+    "sortNew": "Newest first"
   },
   "forYou": {
     "title": "Recommended for you",
@@ -592,7 +598,8 @@
     "slot_72h": "Less than 3 days left.",
     "settings": "Alert settings",
     "bell": "Notifications",
-    "unread": "{n} unread"
+    "unread": "{n} unread",
+    "announcement": "{title}"
   },
   "home2": {
     "badge": "Verified circulars, one place",

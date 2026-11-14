@@ -3,6 +3,8 @@ import { AdminShell } from '@/components/admin-shell';
 import { Alert, Badge } from '@/components/ui';
 import { apiGet } from '@/lib/api';
 import { requireStaff } from '@/lib/session';
+import { QuickPublish } from './quick-publish';
+import { hasPermission, type Role } from '@c2a/contracts';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Opportunities' };
@@ -15,7 +17,16 @@ interface Row {
   publication_status: string;
   deadline_at: string | null;
   updated_at: string;
+  apply_mode: string;
+  applications: number;
+  saves: number;
 }
+
+const APPLY_LABEL: Record<string, string> = {
+  external: 'Official link',
+  site: 'This site',
+  both: 'Both',
+};
 
 const TONE: Record<string, 'success' | 'neutral' | 'warn' | 'danger' | 'info'> = {
   published: 'success',
@@ -32,6 +43,7 @@ export default async function AdminOpportunities({
   searchParams: Promise<{ status?: string; q?: string; page?: string }>;
 }) {
   const me = await requireStaff();
+  const canPublish = hasPermission(me.roles as Role[], 'opportunity.publish');
   const sp = await searchParams;
   const status = ['draft', 'in_review', 'published', 'unpublished', 'removed'].includes(
     sp.status ?? '',
@@ -107,13 +119,17 @@ export default async function AdminOpportunities({
               <th>Category</th>
               <th>Status</th>
               <th>Deadline</th>
+              <th>Apply on</th>
+              <th>Applications</th>
+              <th>Saves</th>
               <th>Updated</th>
+              {canPublish ? <th>Action</th> : null}
             </tr>
           </thead>
           <tbody>
             {res.kind === 'ok' && res.data.length === 0 ? (
               <tr>
-                <td colSpan={6} className="muted">
+                <td colSpan={10} className="muted">
                   Nothing here yet. Create the first draft with “New opportunity”.
                 </td>
               </tr>
@@ -132,7 +148,23 @@ export default async function AdminOpportunities({
                       </Badge>
                     </td>
                     <td className="tabular">{o.deadline_at ? o.deadline_at.slice(0, 10) : '–'}</td>
+                    <td className="small">{APPLY_LABEL[o.apply_mode] ?? o.apply_mode}</td>
+                    <td className="tabular">
+                      {o.applications > 0 ? (
+                        <Link href={`/admin/applications?q=${encodeURIComponent(o.title)}`}>
+                          {o.applications}
+                        </Link>
+                      ) : (
+                        0
+                      )}
+                    </td>
+                    <td className="tabular">{o.saves}</td>
                     <td className="tabular">{o.updated_at.slice(0, 10)}</td>
+                    {canPublish ? (
+                      <td>
+                        <QuickPublish id={o.id} status={o.publication_status} />
+                      </td>
+                    ) : null}
                   </tr>
                 ))
               : null}
