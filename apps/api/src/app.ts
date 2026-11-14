@@ -10,7 +10,11 @@ import type { Mailer } from './modules/email/mailer';
 import type { AuthRepo } from './modules/auth/repo';
 import { guardOptionsFor, registerAuth } from './modules/auth/routes';
 import type { AdminRepo } from './modules/admin/repo';
+import type { ApplicationRepo } from './modules/applications/repo';
+import { registerApplications } from './modules/applications/routes';
 import { registerAdmin } from './modules/admin/routes';
+import type { ListingRepo } from './modules/listings/repo';
+import { registerListings } from './modules/listings/routes';
 import type { MeRepo } from './modules/me/repo';
 import { registerMe } from './modules/me/routes';
 import type { OpportunityRepo } from './modules/opportunities/repo';
@@ -35,6 +39,8 @@ export interface AppDeps {
   me?: { repo: MeRepo };
   /** Staff API (permissions + second factor). */
   admin?: { repo: AdminRepo };
+  applications?: { repo: ApplicationRepo };
+  listings?: { repo: ListingRepo };
 }
 
 /** Build the Fastify app. Routes are added per module; this is the platform skeleton (Phase 0). */
@@ -136,6 +142,18 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   if (deps.me && deps.opportunities) {
     registerMe(app, { repo: deps.me.repo, opportunities: deps.opportunities.repo, clock, guard });
   }
+
+  if (deps.me && deps.opportunities && deps.applications) {
+    registerApplications(app, {
+      repo: deps.applications.repo,
+      me: deps.me.repo,
+      opportunities: deps.opportunities.repo,
+      clock,
+      guard,
+    });
+  }
+
+  if (deps.listings) registerListings(app, { repo: deps.listings.repo, guard });
 
   if (deps.auth) {
     registerAuth(app, {

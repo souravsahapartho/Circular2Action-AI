@@ -21,7 +21,7 @@ function userReferencingColumns(): string[] {
     if (!table) continue;
     const body = st.replace(/--.*$/gm, '');
     for (const m of body.matchAll(
-      /\b(user_id|owner_user_id|actor_id|reporter_id|verifier_id|\w+_by)\s+(?:BIGINT|BINARY)/g,
+      /\b(user_id|owner_user_id|actor_user_id|actor_id|reporter_id|verifier_id|\w+_by)\s+(?:BIGINT|BINARY)/g,
     )) {
       out.push(`${table}.${m[1]}`);
     }

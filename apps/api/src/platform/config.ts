@@ -58,6 +58,10 @@ export const envSchema = z
     /** TLS is required for TiDB Cloud; off only for the local container. */
     DATABASE_TLS: bool,
     DATABASE_POOL_SIZE: z.coerce.number().int().min(1).max(100).default(10),
+    /** Optional Google Programmable Search connector for the web jobs feed (free tier: 100 queries a day). */
+    GOOGLE_CSE_API_KEY: z.string().min(10).optional(),
+    GOOGLE_CSE_CX: z.string().min(3).optional(),
+    GOOGLE_CSE_QUERY: z.string().min(3).max(200).optional(),
   })
   .superRefine((env, ctx) => {
     // SCH-02: no keep-alive. A free instance must really sleep between ticks.

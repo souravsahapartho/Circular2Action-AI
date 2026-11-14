@@ -16,7 +16,7 @@ describe('migration runner on TiDB (T-10 equivalent with plain SQL)', () => {
     const started = performance.now();
     const res = await migrate(t.db, readMigrations(MIGRATIONS_DIR));
     const ms = Math.round(performance.now() - started);
-    expect(res.applied).toEqual(['0001_init', '0002_staff_mfa']);
+    expect(res.applied).toEqual(['0001_init', '0002_staff_mfa', '0003_portal']);
     const [tables] = await t.db.query<{ n: number } & import('../src/db/pool').Row>(
       `SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'`,
     );
@@ -33,7 +33,7 @@ describe('migration runner on TiDB (T-10 equivalent with plain SQL)', () => {
       foreignKeys: Number(fks!.n),
       ms,
     });
-    expect(Number(tables!.n)).toBe(74); // 72 plan tables + mfa_recovery_codes + schema_migrations
+    expect(Number(tables!.n)).toBe(78); // 72 plan tables + mfa_recovery_codes + 4 portal tables + schema_migrations
     expect(Number(views!.n)).toBe(1);
   });
 

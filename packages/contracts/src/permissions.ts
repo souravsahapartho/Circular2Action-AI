@@ -37,6 +37,9 @@ export const PERMISSIONS = [
   'settings.manage',
   'analytics.view',
   'audit.view',
+  'application.read',
+  'application.manage',
+  'listing.manage',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -45,6 +48,8 @@ const editor: Permission[] = [
   'opportunity.read',
   'opportunity.write',
   'organization.manage',
+  'application.read',
+  'application.manage',
 ];
 const verifier: Permission[] = [
   'extraction.review',
@@ -52,6 +57,8 @@ const verifier: Permission[] = [
   'opportunity.verify',
   'opportunity.publish',
   'opportunity.merge',
+  'application.read',
+  'application.manage',
 ];
 const moderator: Permission[] = ['report.handle', 'user.read', 'user.moderate'];
 const sourceManager: Permission[] = ['source.read', 'source.manage', 'organization.verify'];
@@ -63,6 +70,7 @@ const adminExtra: Permission[] = [
   'system.operate',
   'settings.view',
   'audit.view',
+  'listing.manage',
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {

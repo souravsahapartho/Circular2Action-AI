@@ -22,6 +22,7 @@ export interface OpportunityDetail extends OpportunitySummary {
   vacancies: number | null;
   application_url: string | null;
   how_to_apply: string | null;
+  apply_mode: string;
   requirements: Array<{
     id: string;
     rule_type: string;
@@ -175,10 +176,11 @@ export class OpportunityRepo {
         position_title: string | null;
         vacancies: number | null;
         application_url: string | null;
+        apply_mode: string;
         how_to_apply: string | null;
       }
     >(
-      `${SELECT}, o.summary_bn, o.summary_en, o.position_title, o.vacancies, o.application_url, o.how_to_apply,
+      `${SELECT}, o.summary_bn, o.summary_en, o.position_title, o.vacancies, o.application_url, o.apply_mode, o.how_to_apply,
               ci.official_url, ci.verification_state
        ${BASE.replace('LEFT JOIN opportunity_search s ON s.opportunity_id = o.id', 'JOIN circulars ci ON ci.id = o.circular_id')}
          AND o.id = :id`,
@@ -213,6 +215,7 @@ export class OpportunityRepo {
       positions: r.position_title,
       vacancies: r.vacancies === null ? null : Number(r.vacancies),
       application_url: r.application_url,
+      apply_mode: r.apply_mode,
       how_to_apply: textFor(r.how_to_apply, locale),
       requirements: reqs.map((x) => ({
         id: String(x.id),

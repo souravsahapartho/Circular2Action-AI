@@ -17,6 +17,7 @@ export interface AdminOpportunityInput {
   location_slug?: string | null;
   official_url?: string | null;
   application_url?: string | null;
+  apply_mode?: 'external' | 'site' | 'both';
   how_to_apply?: string | null;
   required_documents?: Array<{ label: string; note?: string }> | null;
   requirements?: Array<{
@@ -43,6 +44,7 @@ export interface AdminOpportunityRow {
   location_slug: string | null;
   official_url: string | null;
   application_url: string | null;
+  apply_mode: string;
   how_to_apply: string | null;
   required_documents: Array<{ label: string; note?: string }> | null;
   publication_status: string;
@@ -112,6 +114,20 @@ export class AdminRepo {
       opportunities: Object.fromEntries(byStatus.map((r) => [r.s, Number(r.n)])),
       users: Number(u!.n),
       applications: Number(a!.n),
+      site_applications: Object.fromEntries(
+        (
+          await this.db.query<Row & { s: string; n: number }>(
+            'SELECT status AS s, COUNT(*) AS n FROM site_applications GROUP BY status',
+          )
+        ).map((r) => [r.s, Number(r.n)]),
+      ),
+      web_listings: Number(
+        (
+          await this.db.query<Row & { n: number }>(
+            'SELECT COUNT(*) AS n FROM external_listings WHERE hidden = 0',
+          )
+        )[0]!.n,
+      ),
       organizations: Number(o!.n),
     };
   }
@@ -237,6 +253,7 @@ export class AdminRepo {
         vacancies: number | null;
         deadline_at: Date | null;
         application_url: string | null;
+        apply_mode: string;
         how_to_apply: string | null;
         required_documents: unknown;
         publication_status: string;
@@ -250,7 +267,7 @@ export class AdminRepo {
     >(
       `SELECT o.id, o.slug, o.title, o.title_alt, o.organization_id, org.name_en AS org_en, org.name_bn AS org_bn,
               c.slug AS cat, o.position_title, o.summary_bn, o.summary_en, o.vacancies, o.deadline_at,
-              o.application_url, o.how_to_apply, o.required_documents, o.publication_status, o.lifecycle_status,
+              o.application_url, o.apply_mode, o.how_to_apply, o.required_documents, o.publication_status, o.lifecycle_status,
               o.published_at, o.updated_at, ci.official_url, ci.verification_state,
               (SELECT l.slug FROM opportunity_locations ol JOIN locations l ON l.id = ol.location_id
                  WHERE ol.opportunity_id = o.id ORDER BY l.id LIMIT 1) AS loc
@@ -297,6 +314,7 @@ export class AdminRepo {
       location_slug: r.loc,
       official_url: r.official_url,
       application_url: r.application_url,
+      apply_mode: r.apply_mode,
       how_to_apply: r.how_to_apply,
       required_documents: parse(r.required_documents),
       publication_status: r.publication_status,
@@ -407,9 +425,9 @@ export class AdminRepo {
       const slug = `${base}-${randomBytes(4).toString('hex')}`.slice(0, 200);
       const opp = await tx.execute(
         `INSERT INTO opportunities (circular_id, organization_id, category_id, slug, title, title_alt, position_title,
-           summary_bn, summary_en, vacancies, deadline_at, deadline_precision, application_url, how_to_apply,
+           summary_bn, summary_en, vacancies, deadline_at, deadline_precision, application_url, apply_mode, how_to_apply,
            required_documents, publication_status, lifecycle_status)
-         VALUES (:c, :org, :cat, :slug, :t, :ta, :pos, :sbn, :sen, :vac, :dl, 'date', :au, :how, :docs, 'draft', 'open')`,
+         VALUES (:c, :org, :cat, :slug, :t, :ta, :pos, :sbn, :sen, :vac, :dl, 'date', :au, :mode, :how, :docs, 'draft', 'open')`,
         {
           c: String(circ.insertId),
           org: input.organization_id,
@@ -423,6 +441,7 @@ export class AdminRepo {
           vac: input.vacancies ?? null,
           dl: input.deadline_at ?? null,
           au: input.application_url ?? null,
+          mode: input.apply_mode ?? 'external',
           how: input.how_to_apply ?? null,
           docs: input.required_documents ? JSON.stringify(input.required_documents) : null,
         },
@@ -469,6 +488,7 @@ export class AdminRepo {
         ['vacancies', 'vacancies', (v) => v],
         ['deadline_at', 'deadline_at', (v) => v],
         ['application_url', 'application_url', (v) => v],
+        ['apply_mode', 'apply_mode', (v) => v],
         ['how_to_apply', 'how_to_apply', (v) => v],
         ['required_documents', 'required_documents', (v) => (v ? JSON.stringify(v) : null)],
       ];

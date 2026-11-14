@@ -43,6 +43,7 @@ interface DemoOpportunity {
   vacancies?: number;
   /** sample link on the reserved example.org domain, so no real site is implied */
   applyUrl?: string;
+  applyMode?: 'external' | 'site' | 'both';
   howToApply?: string;
   reqs: Array<{
     rule_type: string;
@@ -88,6 +89,7 @@ const DEMO: DemoOpportunity[] = [
     summaryEn: `Recruitment for Assistant Programmer. ${NOTE_EN}`,
     location: 'dhaka',
     daysToDeadline: 12,
+    applyMode: 'both',
     applyUrl: 'https://example.org/sample-apply/assistant-programmer',
     howToApply:
       'অনলাইনে আবেদন ফরম পূরণ করে নির্ধারিত তারিখের মধ্যে জমা দিন। (নমুনা তথ্য) / Fill in the online application form and submit it before the deadline. (Sample data)',
@@ -124,6 +126,7 @@ const DEMO: DemoOpportunity[] = [
     summaryEn: `Recruitment for Office Assistant. ${NOTE_EN}`,
     location: 'chattogram',
     daysToDeadline: 6,
+    applyMode: 'both',
     applyUrl: 'https://example.org/sample-apply/office-assistant',
     howToApply:
       'অনলাইনে আবেদন ফরম পূরণ করে নির্ধারিত তারিখের মধ্যে জমা দিন। (নমুনা তথ্য) / Fill in the online application form and submit it before the deadline. (Sample data)',
@@ -154,6 +157,7 @@ const DEMO: DemoOpportunity[] = [
     summaryEn: `Contract recruitment for Data Entry Operator. ${NOTE_EN}`,
     location: 'sylhet',
     daysToDeadline: 25,
+    applyMode: 'site',
     vacancies: 3,
     reqs: [
       {
@@ -181,6 +185,7 @@ const DEMO: DemoOpportunity[] = [
     summaryEn: `Three-month software internship. ${NOTE_EN}`,
     location: 'dhaka',
     daysToDeadline: 18,
+    applyMode: 'both',
     applyUrl: 'https://example.org/sample-apply/software-internship',
     howToApply:
       'অনলাইনে আবেদন ফরম পূরণ করে নির্ধারিত তারিখের মধ্যে জমা দিন। (নমুনা তথ্য) / Fill in the online application form and submit it before the deadline. (Sample data)',
@@ -320,8 +325,13 @@ export async function seedDemo(db: Db, now: Date): Promise<number> {
         { o: existing },
       );
       await db.execute(
-        'UPDATE opportunities SET application_url = :au, how_to_apply = :how WHERE id = :id',
-        { au: d.applyUrl ?? null, how: d.howToApply ?? null, id: existing },
+        'UPDATE opportunities SET application_url = :au, apply_mode = :mode, how_to_apply = :how WHERE id = :id',
+        {
+          au: d.applyUrl ?? null,
+          mode: d.applyMode ?? 'external',
+          how: d.howToApply ?? null,
+          id: existing,
+        },
       );
       if (rows.length === d.reqs.length) {
         for (const [i, r] of d.reqs.entries()) {
@@ -345,8 +355,8 @@ export async function seedDemo(db: Db, now: Date): Promise<number> {
       deadline.setUTCHours(17, 59, 59, 0); // 23:59:59 Asia/Dhaka
       const opp = await tx.execute(
         `INSERT INTO opportunities (circular_id, organization_id, category_id, slug, title, title_alt, position_title,
-           summary_bn, summary_en, vacancies, application_url, how_to_apply, deadline_at, deadline_precision, publication_status, lifecycle_status, published_at)
-         VALUES (:c, :org, :cat, :slug, :t, :ta, :pos, :sbn, :sen, :vac, :au, :how, :dl, 'date', 'published', 'open', :now)`,
+           summary_bn, summary_en, vacancies, application_url, apply_mode, how_to_apply, deadline_at, deadline_precision, publication_status, lifecycle_status, published_at)
+         VALUES (:c, :org, :cat, :slug, :t, :ta, :pos, :sbn, :sen, :vac, :au, :mode, :how, :dl, 'date', 'published', 'open', :now)`,
         {
           c: String(circ.insertId),
           org: orgIds[d.org],
@@ -359,6 +369,7 @@ export async function seedDemo(db: Db, now: Date): Promise<number> {
           sen: d.summaryEn,
           vac: d.vacancies ?? null,
           au: d.applyUrl ?? null,
+          mode: d.applyMode ?? 'external',
           how: d.howToApply ?? null,
           dl: deadline,
           now,

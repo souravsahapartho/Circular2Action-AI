@@ -62,6 +62,7 @@ const opportunityBody = z
       .optional(),
     official_url: httpUrl.nullable().optional(),
     application_url: httpUrl.nullable().optional(),
+    apply_mode: z.enum(['external', 'site', 'both']).optional(),
     how_to_apply: text(5000),
     required_documents: z
       .array(

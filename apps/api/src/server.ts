@@ -4,8 +4,12 @@ import { databaseCheck } from './db/readiness';
 import { AuthRepo } from './modules/auth/repo';
 import { LogMailer } from './modules/email/mailer';
 import { AdminRepo } from './modules/admin/repo';
+import { ApplicationRepo } from './modules/applications/repo';
+import { ListingRepo } from './modules/listings/repo';
+import { buildConnectors } from './modules/listings/sources';
 import { MeRepo } from './modules/me/repo';
 import { OpportunityRepo } from './modules/opportunities/repo';
+import { systemClock } from './platform/clock';
 import { loadConfig } from './platform/config';
 
 async function main(): Promise<void> {
@@ -25,6 +29,18 @@ async function main(): Promise<void> {
           opportunities: { repo: new OpportunityRepo(db) },
           me: { repo: new MeRepo(db) },
           admin: { repo: new AdminRepo(db) },
+          applications: { repo: new ApplicationRepo(db) },
+          listings: {
+            repo: new ListingRepo(
+              db,
+              buildConnectors({
+                googleKey: config.GOOGLE_CSE_API_KEY,
+                googleCx: config.GOOGLE_CSE_CX,
+                googleQuery: config.GOOGLE_CSE_QUERY,
+              }),
+              systemClock,
+            ),
+          },
           auth: {
             repo: new AuthRepo(db),
             mailer: new LogMailer((o, m) => console.warn(m, JSON.stringify(o))),
