@@ -41,7 +41,14 @@ export function SignInForm({
     });
     if (out.ok) {
       if (out.data?.mfa_required) window.location.assign('/admin/mfa');
-      else window.location.assign(safeNext(next, `/${locale}/app`));
+      else {
+        const dest = safeNext(next, '');
+        if (dest) window.location.assign(dest);
+        else {
+          const me = await callApi<{ employer?: boolean }>('GET', '/api/v1/me');
+          window.location.assign(me.data?.employer ? '/employer' : `/${locale}/app`);
+        }
+      }
       return;
     }
     s.setError(
@@ -86,12 +93,15 @@ export function RegisterForm({
   locale,
   labels,
   errors,
+  initialType = 'seeker',
 }: {
   locale: string;
   labels: A;
   errors: Record<string, string>;
+  initialType?: 'seeker' | 'employer';
 }) {
   const s = useSubmit();
+  const [type, setType] = useState<'seeker' | 'employer'>(initialType);
   const [done, setDone] = useState<null | 'ready' | 'verify'>(null);
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -103,6 +113,9 @@ export function RegisterForm({
     const password = String(f.get('password') ?? '');
     const local: Record<string, string> = {};
     if (!email.includes('@')) local.email = errors.VALIDATION_ERROR ?? '';
+    const company = String(f.get('company') ?? '').trim();
+    if (type === 'employer' && company.length < 2)
+      local.company_name = errors.VALIDATION_ERROR ?? '';
     if (
       [...password].length < 8 ||
       !/\p{Ll}/u.test(password) ||
@@ -122,6 +135,18 @@ export function RegisterForm({
         email,
         password,
         display_name: String(f.get('name') ?? '').trim(),
+        account_type: type,
+        ...(type === 'employer'
+          ? {
+              company_name: company,
+              ...(String(f.get('website') ?? '').trim()
+                ? { company_website: String(f.get('website')).trim() }
+                : {}),
+              ...(String(f.get('phone') ?? '').trim()
+                ? { phone: String(f.get('phone')).trim() }
+                : {}),
+            }
+          : {}),
         age_confirmed: f.get('age') === 'on',
         locale,
         consents: {
@@ -141,7 +166,7 @@ export function RegisterForm({
       // staging without an email provider: the account is ready, so sign in straight away
       const login = await callApi('POST', '/api/v1/auth/login', { email, password });
       if (login.ok) {
-        window.location.assign(`/${locale}/app/profile`);
+        window.location.assign(type === 'employer' ? '/employer' : `/${locale}/app/profile`);
         return;
       }
       setDone('ready');
@@ -166,6 +191,24 @@ export function RegisterForm({
   return (
     <form onSubmit={onSubmit} noValidate>
       {s.error ? <Alert kind="error">{s.error}</Alert> : null}
+      <fieldset className="type-pick">
+        <legend>{labels.accountType}</legend>
+        {(['seeker', 'employer'] as const).map((k) => (
+          <label key={k} className={`type-card${type === k ? ' on' : ''}`}>
+            <input
+              type="radio"
+              name="account_type"
+              value={k}
+              checked={type === k}
+              onChange={() => setType(k)}
+            />
+            <strong>{k === 'seeker' ? labels.typeSeeker : labels.typeEmployer}</strong>
+            <span className="muted small">
+              {k === 'seeker' ? labels.typeSeekerText : labels.typeEmployerText}
+            </span>
+          </label>
+        ))}
+      </fieldset>
       <div className={`field${fe.display_name ? ' invalid' : ''}`}>
         <label htmlFor="name">{labels.name}</label>
         <input
@@ -206,6 +249,39 @@ export function RegisterForm({
           {fe.password ?? labels.passwordHint}
         </span>
       </div>
+      {type === 'employer' ? (
+        <>
+          <div className={`field${fe.company_name ? ' invalid' : ''}`}>
+            <label htmlFor="company">{labels.company}</label>
+            <input
+              id="company"
+              name="company"
+              autoComplete="organization"
+              required
+              maxLength={200}
+              className="input"
+            />
+            {fe.company_name ? <span className="field-error">{fe.company_name}</span> : null}
+          </div>
+          <div className={`field${fe.company_website ? ' invalid' : ''}`}>
+            <label htmlFor="website">{labels.website}</label>
+            <input
+              id="website"
+              name="website"
+              type="url"
+              placeholder="https://"
+              className="input"
+            />
+            {fe.company_website ? <span className="field-error">{fe.company_website}</span> : null}
+          </div>
+          <div className={`field${fe.phone ? ' invalid' : ''}`}>
+            <label htmlFor="phone">{labels.phone}</label>
+            <input id="phone" name="phone" type="tel" autoComplete="tel" className="input" />
+            {fe.phone ? <span className="field-error">{fe.phone}</span> : null}
+          </div>
+          <p className="muted small">{labels.employerNote}</p>
+        </>
+      ) : null}
       <div className="stack" style={{ marginBottom: 16 }}>
         <label className="check">
           <input type="checkbox" name="age" required /> <span>{labels.age}</span>

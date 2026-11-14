@@ -5,6 +5,7 @@ import { AuthRepo } from './modules/auth/repo';
 import { LogMailer } from './modules/email/mailer';
 import { AdminRepo } from './modules/admin/repo';
 import { AdminInsights } from './modules/admin/insights';
+import { EmployerRepo } from './modules/employer/repo';
 import { ApplicationRepo } from './modules/applications/repo';
 import { ListingRepo } from './modules/listings/repo';
 import { buildConnectors } from './modules/listings/sources';
@@ -23,6 +24,7 @@ async function main(): Promise<void> {
         connectionLimit: config.DATABASE_POOL_SIZE,
       })
     : null;
+  const adminRepo = db ? new AdminRepo(db) : null;
   const meRepo = db ? new MeRepo(db) : null;
   const oppRepo = db ? new OpportunityRepo(db) : null;
   const app = buildApp({
@@ -33,7 +35,8 @@ async function main(): Promise<void> {
           opportunities: { repo: oppRepo! },
           me: { repo: meRepo! },
           recommend: { service: new RecommendService(db, meRepo!, oppRepo!, systemClock) },
-          admin: { repo: new AdminRepo(db) },
+          admin: { repo: adminRepo! },
+          employer: { repo: new EmployerRepo(db, adminRepo!, systemClock) },
           applications: { repo: new ApplicationRepo(db) },
           adminInsights: { insights: new AdminInsights(db, systemClock) },
           listings: {

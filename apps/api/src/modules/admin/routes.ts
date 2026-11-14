@@ -44,7 +44,7 @@ const requirement = z
   })
   .strict();
 
-const opportunityBody = z
+export const opportunityBody = z
   .object({
     title: z.string().trim().min(3).max(500),
     title_alt: text(500),
@@ -106,7 +106,7 @@ const listQuery = z.object({
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
 });
 
-function toInput(b: z.infer<typeof opportunityBody>): AdminOpportunityInput {
+export function toInput(b: z.infer<typeof opportunityBody>): AdminOpportunityInput {
   const { deadline_date, ...rest } = b;
   return {
     ...rest,

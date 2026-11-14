@@ -2,7 +2,7 @@
 export function safeNext(next: string | null | undefined, fallback: string): string {
   if (
     !next ||
-    !/^\/(bn|en|admin)(\/|$|\?)/.test(next) ||
+    !/^\/(bn|en|admin|employer)(\/|$|\?)/.test(next) ||
     next.includes('//') ||
     next.includes('\\')
   ) {

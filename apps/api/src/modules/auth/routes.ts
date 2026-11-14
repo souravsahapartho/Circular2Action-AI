@@ -1,4 +1,9 @@
-import { CONSENT_PURPOSE_LIST, consentState, type ConsentPurpose } from '@c2a/contracts';
+import {
+  CONSENT_PURPOSE_LIST,
+  consentState,
+  isStaffRole,
+  type ConsentPurpose,
+} from '@c2a/contracts';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Clock } from '../../platform/clock';
@@ -55,24 +60,51 @@ export interface AuthDeps {
   secret: string;
   /** false only on staging without an email provider: accounts are verified at registration */
   emailVerificationRequired?: boolean;
+  /** creates the company and the employer role for an account that signed up as an employer */
+  employers?: {
+    createAccount(
+      userId: string,
+      c: { company_name: string; website?: string | null; phone?: string | null },
+    ): Promise<void>;
+  };
 }
 
 const email = z.string().trim().email().max(254);
 const password = z.string().min(1).max(1024);
 const locale = z.enum(['bn', 'en']);
 
-const registerBody = z.object({
-  email,
-  password,
-  display_name: z.string().trim().min(1).max(100),
-  age_confirmed: z.literal(true),
-  locale: locale.default('bn'),
-  consents: z.object({
-    terms: z.literal(true),
-    privacy: z.literal(true),
-    weekly_digest: z.boolean().optional(),
-  }),
-});
+const registerBody = z
+  .object({
+    email,
+    password,
+    display_name: z.string().trim().min(1).max(100),
+    age_confirmed: z.literal(true),
+    locale: locale.default('bn'),
+    consents: z.object({
+      terms: z.literal(true),
+      privacy: z.literal(true),
+      weekly_digest: z.boolean().optional(),
+    }),
+    account_type: z.enum(['seeker', 'employer']).default('seeker'),
+    company_name: z.string().trim().min(2).max(200).optional(),
+    company_website: z
+      .string()
+      .trim()
+      .url()
+      .max(500)
+      .refine((u) => /^https?:\/\//i.test(u), 'Must be an http(s) link')
+      .optional(),
+    phone: z
+      .string()
+      .trim()
+      .max(30)
+      .regex(/^[0-9+()\-\s]{6,30}$/, 'Enter a valid phone number')
+      .optional(),
+  })
+  .refine((b) => b.account_type !== 'employer' || Boolean(b.company_name), {
+    path: ['company_name'],
+    message: 'Enter your company or organisation name',
+  });
 const loginBody = z.object({ email, password });
 const tokenBody = z.object({ token: z.string().min(20).max(200) });
 const emailBody = z.object({ email });
@@ -144,7 +176,7 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
     const user = await repo.findUserById(s.user_id);
     if (!user) return;
     const roles = await repo.roles(user.id);
-    const staff = roles.some((r) => r !== 'user');
+    const staff = roles.some(isStaffRole);
     if (now.getTime() - s.last_seen_at.getTime() > (staff ? 60_000 : SESSION_TOUCH_MS)) {
       const idle = new Date(
         Math.min(
@@ -259,6 +291,7 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
       email_verified: user.email_verified_at !== null,
       roles: a.roles,
       staff: a.staff,
+      employer: a.roles.includes('employer'),
       mfa_verified: a.mfaVerified,
       mfa_enrolled: a.mfaEnrolled,
     };
@@ -300,6 +333,13 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
         ],
       });
       if (created) {
+        if (b.account_type === 'employer' && deps.employers) {
+          await deps.employers.createAccount(created.id, {
+            company_name: b.company_name!,
+            website: b.company_website ?? null,
+            phone: b.phone ?? null,
+          });
+        }
         if (deps.emailVerificationRequired === false) {
           // Staging without an email provider: the account is usable immediately (never allowed in production).
           await repo.markEmailVerified(created.id, now);
@@ -386,7 +426,7 @@ export function registerAuth(app: FastifyInstance, deps: AuthDeps): void {
       if (!user.email_verified_at)
         throw new AppError('EMAIL_NOT_VERIFIED', 'Please verify your email first.');
       const roles = await repo.roles(user.id);
-      const staff = roles.some((r) => r !== 'user');
+      const staff = roles.some(isStaffRole);
       if (needsRehash(user.password_hash))
         await repo.setPasswordHash(user.id, await hashPassword(b.password));
       await repo.touchLogin(user.id, clock.now());

@@ -50,12 +50,14 @@ export function ApplicationPanel({
   adminNote,
   canManage,
   timeline,
+  apiBase = '/api/v1/admin/applications',
 }: {
   id: string;
   status: string;
   adminNote: string | null;
   canManage: boolean;
   timeline: Event[];
+  apiBase?: string;
 }) {
   const router = useRouter();
   const options = NEXT[status] ?? [];
@@ -69,7 +71,7 @@ export function ApplicationPanel({
   async function move() {
     setBusy(true);
     setMsg(null);
-    const out = await callApi('POST', `/api/v1/admin/applications/${id}/status`, {
+    const out = await callApi('POST', `${apiBase}/${id}/status`, {
       status: to,
       note: note.trim() || null,
       visible_to_applicant: visible,
@@ -85,7 +87,7 @@ export function ApplicationPanel({
   async function saveNote() {
     setBusy(true);
     setMsg(null);
-    const out = await callApi('PUT', `/api/v1/admin/applications/${id}/note`, {
+    const out = await callApi('PUT', `${apiBase}/${id}/note`, {
       note: internal.trim() || null,
     });
     setBusy(false);

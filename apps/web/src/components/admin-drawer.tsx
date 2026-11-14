@@ -53,7 +53,7 @@ export function AdminDrawer({ children }: { children: ReactNode }) {
         <button
           type="button"
           className="btn ghost"
-          aria-label="Open the staff menu"
+          aria-label="Open the menu"
           aria-expanded={open}
           aria-controls="admin-side"
           onClick={() => setOpen(true)}
@@ -62,14 +62,14 @@ export function AdminDrawer({ children }: { children: ReactNode }) {
           <Icon name="menu" size="lg" />
         </button>
         <Logo locale="en" />
-        <span className="portal-tag-sm">Staff</span>
+        <span className="portal-tag-sm">Portal</span>
       </header>
       {open ? <div className="admin-scrim" onClick={() => setOpen(false)} /> : null}
       <aside id="admin-side" className={`admin-side${open ? ' open' : ''}`}>
         <button
           type="button"
           className="btn ghost sm admin-close"
-          aria-label="Close the staff menu"
+          aria-label="Close the menu"
           onClick={() => setOpen(false)}
         >
           <Icon name="x" />

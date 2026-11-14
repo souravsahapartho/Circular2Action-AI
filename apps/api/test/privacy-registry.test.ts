@@ -26,6 +26,12 @@ function userReferencingColumns(): string[] {
       out.push(`${table}.${m[1]}`);
     }
   }
+  // columns added later with ALTER TABLE count too (for example opportunities.owner_user_id)
+  for (const m of migration.matchAll(
+    /ALTER TABLE (\w+) ADD COLUMN (user_id|owner_user_id|actor_user_id|actor_id|reporter_id|verifier_id|\w+_by)\s+(?:BIGINT|BINARY)/g,
+  )) {
+    out.push(`${m[1]}.${m[2]}`);
+  }
   return [...new Set(out)];
 }
 

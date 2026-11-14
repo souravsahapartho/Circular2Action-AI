@@ -5,7 +5,7 @@ import { DEFAULT_LOCALE, isLocale } from './i18n/config';
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const first = pathname.split('/')[1];
-  if (isLocale(first) || first === 'admin') return NextResponse.next();
+  if (isLocale(first) || first === 'admin' || first === 'employer') return NextResponse.next();
   const saved = req.cookies.get('NEXT_LOCALE')?.value;
   const locale = isLocale(saved) ? saved : DEFAULT_LOCALE;
   const url = req.nextUrl.clone();

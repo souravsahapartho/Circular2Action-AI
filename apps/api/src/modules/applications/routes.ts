@@ -64,6 +64,8 @@ export function registerApplications(
     clock: Clock;
     guard: GuardOptions;
     activity?: Pick<RecommendService, 'record'>;
+    /** told when an application is created (the employer who owns the post gets a notification) */
+    onApplied?: (applicationId: string, opportunityId: string) => Promise<void>;
   },
 ): void {
   const { repo, me, opportunities, clock, guard } = deps;
@@ -142,6 +144,7 @@ export function registerApplications(
         throw new AppError('FORBIDDEN', 'This account cannot apply.');
       default:
         if (res.kind === 'created') {
+          await deps.onApplied?.(res.id, id).catch(() => undefined);
           await deps.activity
             ?.record(req.auth!.userId, { kind: 'apply', opportunityId: id })
             .catch(() => false);

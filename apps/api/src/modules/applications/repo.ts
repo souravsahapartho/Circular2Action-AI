@@ -294,6 +294,8 @@ export class ApplicationRepo {
     status?: SiteStatus;
     opportunityId?: string;
     q?: string;
+    /** only applications to posts this employer owns */
+    ownerUserId?: string;
     limit: number;
     offset: number;
   }) {
@@ -302,6 +304,10 @@ export class ApplicationRepo {
     if (q.status) {
       where.push('a.status = :status');
       params.status = q.status;
+    }
+    if (q.ownerUserId) {
+      where.push('o.owner_user_id = :owner');
+      params.owner = q.ownerUserId;
     }
     if (q.opportunityId) {
       where.push('a.opportunity_id = :opp');
@@ -333,10 +339,16 @@ export class ApplicationRepo {
     };
   }
 
-  async statusCounts(): Promise<Record<string, number>> {
-    const rows = await this.db.query<Row & { s: string; n: number }>(
-      'SELECT status AS s, COUNT(*) AS n FROM site_applications GROUP BY status',
-    );
+  async statusCounts(ownerUserId?: string): Promise<Record<string, number>> {
+    const rows = ownerUserId
+      ? await this.db.query<Row & { s: string; n: number }>(
+          `SELECT a.status AS s, COUNT(*) AS n FROM site_applications a JOIN opportunities o ON o.id = a.opportunity_id
+           WHERE o.owner_user_id = :u GROUP BY a.status`,
+          { u: ownerUserId },
+        )
+      : await this.db.query<Row & { s: string; n: number }>(
+          'SELECT status AS s, COUNT(*) AS n FROM site_applications GROUP BY status',
+        );
     const out: Record<string, number> = Object.fromEntries(SITE_STATUSES.map((s) => [s, 0]));
     for (const r of rows) out[r.s] = Number(r.n);
     return out;

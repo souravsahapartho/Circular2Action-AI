@@ -11,6 +11,8 @@ import type { AuthRepo } from './modules/auth/repo';
 import { guardOptionsFor, registerAuth } from './modules/auth/routes';
 import type { AdminRepo } from './modules/admin/repo';
 import type { AdminInsights } from './modules/admin/insights';
+import type { EmployerRepo } from './modules/employer/repo';
+import { registerEmployer } from './modules/employer/routes';
 import { registerAdminInsights } from './modules/admin/insights-routes';
 import type { ApplicationRepo } from './modules/applications/repo';
 import { registerApplications } from './modules/applications/routes';
@@ -47,6 +49,7 @@ export interface AppDeps {
   listings?: { repo: ListingRepo };
   recommend?: { service: RecommendService };
   adminInsights?: { insights: AdminInsights };
+  employer?: { repo: EmployerRepo };
 }
 
 /** Build the Fastify app. Routes are added per module; this is the platform skeleton (Phase 0). */
@@ -175,6 +178,11 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       clock,
       guard,
       ...(deps.recommend ? { activity: deps.recommend.service } : {}),
+      ...(deps.employer
+        ? {
+            onApplied: (a: string, o: string) => deps.employer!.repo.notifyNewApplication(a, o),
+          }
+        : {}),
     });
   }
 
@@ -187,12 +195,22 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     });
   }
 
+  if (deps.employer && deps.applications) {
+    registerEmployer(app, {
+      repo: deps.employer.repo,
+      applications: deps.applications.repo,
+      clock,
+      guard,
+    });
+  }
+
   if (deps.listings) registerListings(app, { repo: deps.listings.repo, guard });
   if (deps.recommend) registerRecommend(app, { service: deps.recommend.service, clock, guard });
 
   if (deps.auth) {
     registerAuth(app, {
       ...deps.auth,
+      ...(deps.employer ? { employers: deps.employer.repo } : {}),
       clock,
       appEnv: config.APP_ENV,
       webOrigin: config.WEB_ORIGIN,

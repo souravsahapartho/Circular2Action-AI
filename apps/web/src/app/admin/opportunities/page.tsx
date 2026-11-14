@@ -18,6 +18,7 @@ interface Row {
   deadline_at: string | null;
   updated_at: string;
   apply_mode: string;
+  by_employer?: boolean;
   applications: number;
   saves: number;
 }
@@ -139,6 +140,12 @@ export default async function AdminOpportunities({
                   <tr key={o.id}>
                     <td>
                       <Link href={`/admin/opportunities/${o.id}`}>{o.title}</Link>
+                      {o.by_employer ? (
+                        <>
+                          {' '}
+                          <Badge tone="info">employer</Badge>
+                        </>
+                      ) : null}
                     </td>
                     <td>{o.organization}</td>
                     <td>{o.category_slug}</td>

@@ -3077,3 +3077,49 @@ table.data tr.picked td {
     text-align: center;
   }
 }
+
+/* ===== sign-up type picker and the employer portal ===== */
+.type-pick {
+  border: 0;
+  padding: 0;
+  margin: 0 0 16px;
+  display: grid;
+  gap: 10px;
+}
+.type-pick legend {
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding: 0;
+}
+@media (min-width: 560px) {
+  .type-pick {
+    grid-template-columns: 1fr 1fr;
+  }
+  .type-pick legend {
+    grid-column: 1 / -1;
+  }
+}
+.type-card {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px 12px 40px;
+  border: 1.5px solid var(--line-200);
+  border-radius: 12px;
+  background: var(--paper-0);
+  cursor: pointer;
+}
+.type-card input {
+  position: absolute;
+  left: 14px;
+  top: 16px;
+  accent-color: var(--brand-700);
+}
+.type-card.on {
+  border-color: var(--brand-700);
+  background: var(--brand-50);
+  box-shadow: 0 0 0 3px rgb(11 93 94 / 0.12);
+}
+.employer-shell .admin-side {
+  background: linear-gradient(180deg, #1b2f4a 0%, #0f4a52 100%);
+}

@@ -45,7 +45,17 @@ const fmt = (iso: string) =>
   }).format(new Date(iso));
 
 /** The applications list with row selection and a bulk "move to" bar (staff with the manage permission). */
-export function ApplicationsTable({ rows, canManage }: { rows: AppRow[]; canManage: boolean }) {
+export function ApplicationsTable({
+  rows,
+  canManage,
+  basePath = '/admin/applications',
+  bulkApi = '/api/v1/admin/applications/bulk-status',
+}: {
+  rows: AppRow[];
+  canManage: boolean;
+  basePath?: string;
+  bulkApi?: string;
+}) {
   const router = useRouter();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [to, setTo] = useState('under_review');
@@ -67,7 +77,7 @@ export function ApplicationsTable({ rows, canManage }: { rows: AppRow[]; canMana
     setMsg(null);
     const out = await callApi<{ updated: number; skipped: Array<{ id: string; reason: string }> }>(
       'POST',
-      '/api/v1/admin/applications/bulk-status',
+      bulkApi,
       { ids: [...picked], status: to, note: note.trim() || null, visible_to_applicant: true },
     );
     setBusy(false);
@@ -154,7 +164,7 @@ export function ApplicationsTable({ rows, canManage }: { rows: AppRow[]; canMana
                   </td>
                 ) : null}
                 <td>
-                  <Link href={`/admin/applications/${a.id}`}>
+                  <Link href={`${basePath}/${a.id}`}>
                     <code>{a.tracking_code}</code>
                   </Link>
                 </td>

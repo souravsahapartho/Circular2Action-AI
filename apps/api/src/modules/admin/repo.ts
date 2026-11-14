@@ -209,12 +209,13 @@ export class AdminRepo {
         deadline_at: Date | null;
         updated_at: Date;
         apply_mode: string;
+        by_employer: number;
         applications: number;
         saves: number;
       }
     >(
       `SELECT o.id, o.slug, o.title, org.name_en AS org_en, org.name_bn AS org_bn, c.slug AS cat,
-              o.publication_status, o.deadline_at, o.updated_at, o.apply_mode,
+              o.publication_status, o.deadline_at, o.updated_at, o.apply_mode, (o.owner_user_id IS NOT NULL) AS by_employer,
               (SELECT COUNT(*) FROM site_applications a WHERE a.opportunity_id = o.id) AS applications,
               (SELECT COUNT(*) FROM saved_opportunities sv WHERE sv.opportunity_id = o.id) AS saves
        FROM opportunities o JOIN organizations org ON org.id = o.organization_id
@@ -238,6 +239,7 @@ export class AdminRepo {
         deadline_at: r.deadline_at ? r.deadline_at.toISOString() : null,
         updated_at: r.updated_at.toISOString(),
         apply_mode: r.apply_mode,
+        by_employer: Number(r.by_employer) === 1,
         applications: Number(r.applications),
         saves: Number(r.saves),
       })),
@@ -561,16 +563,22 @@ export class AdminRepo {
   ): Promise<'ok' | 'not_found' | 'needs_official_url' | 'needs_requirements_verified'> {
     const result = await this.db.transaction(async (tx) => {
       const rows = await tx.query<
-        Row & { circular_id: string; official_url: string | null; publication_status: string }
+        Row & {
+          circular_id: string;
+          official_url: string | null;
+          publication_status: string;
+          owner_user_id: string | null;
+        }
       >(
-        `SELECT o.circular_id, ci.official_url, o.publication_status
+        `SELECT o.circular_id, ci.official_url, o.publication_status, o.owner_user_id
          FROM opportunities o JOIN circulars ci ON ci.id = o.circular_id WHERE o.id = :id FOR UPDATE`,
         { id },
       );
       const cur = rows[0];
       if (!cur) return 'not_found' as const;
       if (to === 'published') {
-        if (!cur.official_url) return 'needs_official_url' as const;
+        // staff-entered circulars need the official link; an employer's own post is approved on its own merits
+        if (!cur.official_url && cur.owner_user_id === null) return 'needs_official_url' as const;
         await tx.execute(
           `UPDATE opportunity_requirements SET verification_state = 'verified' WHERE opportunity_id = :id`,
           { id },

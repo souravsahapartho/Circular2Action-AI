@@ -245,6 +245,9 @@ function Footer({ locale, dict }: { locale: Locale; dict: Dictionary }) {
               <li>
                 <Link href={`/${locale}/app/tracker`}>{dict.nav.tracker}</Link>
               </li>
+              <li>
+                <a href="/employer/login">{dict.footer.postJob}</a>
+              </li>
             </ul>
           </div>
           <div>

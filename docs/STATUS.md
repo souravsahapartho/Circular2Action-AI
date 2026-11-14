@@ -57,6 +57,17 @@ Plan: addendum in `docs/PLAN_v1.2_PORTAL.md`. Migration `0004_interests.sql` (80
 - **Staff portal, more powerful**: analytics dashboard (new accounts and applications per day, application funnel, by category, what people do, most wanted opportunities, web jobs by source), applications CSV export (formula-safe, audited), bulk status change with a note, suspend and restore accounts (signs the person out, audited), announcements to everyone or to people interested in one kind (notifications, audited), applications and saves per opportunity with publish and unpublish from the list. On phones every table becomes a stack of cards and the side menu is a drawer.
 - Tests: 10 new TiDB tests (personalised feed, web jobs order, similar, analytics, export, bulk, suspend, broadcast, counts, CSV helpers) on top of the earlier suites: 81 TiDB tests, 187 API unit tests.
 
+## Plan v1.4: employers (recruiters) with their own portal (2026-11-14)
+
+- **Role name: Employer.** Sign-up asks "Find opportunities" or "Hire (employer)"; employers give a company name (website and phone optional). Employers are not staff (no MFA, normal sessions) and hold only `employer.manage`.
+- **Employer portal** at `/employer` (own sign-in `/employer/login`, English only): dashboard, My posts (jobs, internships, circulars), create/edit, send for review, withdraw, close; applications to their own posts with the same status workflow, notes and tracking IDs; company profile. An employer sees and changes only their own posts and the applications to them.
+- **Review rule**: employer posts are never published directly; staff (verifier or above) publish them. The official link is not required for employer posts. 15 posts per day per employer.
+- Migration `0005_employers` (employer profile table, `opportunities.owner_user_id`); privacy registry covers both.
+- Tests: 7 TiDB tests (sign-up types, profile, isolation, staff approve/close, applications and notifications, no access to staff routes, rate limit); 88 TiDB tests in total. Browser: employer sign-up, dashboard, create post, send for review, phone width without overflow.
+- Bug found in the browser: `/employer` was redirected to a locale prefix; the middleware now leaves it alone like `/admin`.
+- Owner admin: `admin123` is below the app's own rule (12 characters, plus MFA for staff), so no such account is created. Use `create-admin` with a strong password from `.env.local`.
+- Not done: staff UI to mark a company verified; employer email notifications (no provider).
+
 Totals at last run: unit tests api 187, eligibility 73, web 10, others 47; TiDB suite 71 tests; `tsc` clean; ESLint clean.
 
 ## NOT done (and why)

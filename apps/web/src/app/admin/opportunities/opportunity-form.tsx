@@ -151,6 +151,7 @@ export function OpportunityForm({
   organizations,
   canPublish,
   canRemove,
+  portal = 'admin',
 }: {
   mode: 'create' | 'edit';
   initial?: AdminOpp;
@@ -159,7 +160,12 @@ export function OpportunityForm({
   organizations: Array<{ id: string; name: string }>;
   canPublish: boolean;
   canRemove?: boolean;
+  /** the employer portal posts to the employer API and sends posts for review instead of publishing */
+  portal?: 'admin' | 'employer';
 }) {
+  const isEmployer = portal === 'employer';
+  const api = isEmployer ? '/api/v1/employer/opportunities' : '/api/v1/admin/opportunities';
+  const home = isEmployer ? '/employer/posts' : '/admin/opportunities';
   const [opp, setOpp] = useState(initial);
   const [f, setF] = useState({
     title: initial?.title ?? '',
@@ -213,7 +219,7 @@ export function OpportunityForm({
     return {
       title: f.title.trim(),
       title_alt: f.title_alt.trim() || null,
-      organization_id: f.organization_id,
+      ...(isEmployer ? {} : { organization_id: f.organization_id }),
       category_slug: f.category_slug,
       position_title: f.position_title.trim() || null,
       summary_bn: f.summary_bn.trim() || null,
@@ -236,16 +242,16 @@ export function OpportunityForm({
     setFe({});
     const body = payload();
     if (typeof body === 'string') return setMsg({ ok: false, text: body });
-    if (!body.organization_id)
+    if (!isEmployer && !('organization_id' in body && body.organization_id))
       return setMsg({ ok: false, text: 'Choose an organisation (or create one first).' });
     setBusy(true);
     if (mode === 'create') {
-      const out = await callApi<{ id: string }>('POST', '/api/v1/admin/opportunities', body);
+      const out = await callApi<{ id: string }>('POST', api, body);
       setBusy(false);
-      if (out.ok && out.data) window.location.assign(`/admin/opportunities/${out.data.id}`);
+      if (out.ok && out.data) window.location.assign(`${home}/${out.data.id}`);
       else failure(out);
     } else {
-      const out = await callApi<AdminOpp>('PATCH', `/api/v1/admin/opportunities/${opp!.id}`, {
+      const out = await callApi<AdminOpp>('PATCH', `${api}/${opp!.id}`, {
         ...body,
         updated_at: opp!.updated_at,
       });
@@ -255,6 +261,29 @@ export function OpportunityForm({
         setMsg({ ok: true, text: 'Saved.' });
       } else failure(out);
     }
+  }
+
+  async function employerAct(action: 'submit' | 'close') {
+    if (!opp) return;
+    if (
+      action === 'close' &&
+      !window.confirm(
+        'Close this posting? It disappears from the site. You can edit it and send it again.',
+      )
+    )
+      return;
+    setBusy(true);
+    setMsg(null);
+    const out = await callApi<AdminOpp>('POST', `${api}/${opp.id}/${action}`, {});
+    setBusy(false);
+    if (out.ok && out.data) {
+      setOpp(out.data);
+      setMsg({
+        ok: true,
+        text:
+          action === 'submit' ? 'Sent for review. Staff will check it and publish it.' : 'Closed.',
+      });
+    } else failure(out);
   }
 
   async function act(action: 'publish' | 'unpublish' | 'remove') {
@@ -313,6 +342,26 @@ export function OpportunityForm({
               >
                 <Icon name="external" size="sm" /> View on site
               </Link>
+            ) : null}
+            {isEmployer && ['draft', 'unpublished'].includes(opp.publication_status) ? (
+              <button
+                type="button"
+                className="btn sm"
+                disabled={busy}
+                onClick={() => void employerAct('submit')}
+              >
+                <Icon name="check" size="sm" /> Send for review
+              </button>
+            ) : null}
+            {isEmployer && ['published', 'in_review'].includes(opp.publication_status) ? (
+              <button
+                type="button"
+                className="btn secondary sm"
+                disabled={busy}
+                onClick={() => void employerAct('close')}
+              >
+                {opp.publication_status === 'in_review' ? 'Withdraw from review' : 'Close posting'}
+              </button>
             ) : null}
             {canPublish && opp.publication_status !== 'published' ? (
               <button
@@ -378,25 +427,27 @@ export function OpportunityForm({
               onChange={(e) => set('title_alt', e.target.value)}
             />
           </div>
-          <div className="field">
-            <label htmlFor="o-org">Organisation</label>
-            <select
-              id="o-org"
-              className="input"
-              value={f.organization_id}
-              onChange={(e) => set('organization_id', e.target.value)}
-            >
-              <option value="">Select…</option>
-              {organizations.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-            <span className="hint">
-              Not listed? <Link href="/admin/organizations">Create the organisation</Link> first.
-            </span>
-          </div>
+          {isEmployer ? null : (
+            <div className="field">
+              <label htmlFor="o-org">Organisation</label>
+              <select
+                id="o-org"
+                className="input"
+                value={f.organization_id}
+                onChange={(e) => set('organization_id', e.target.value)}
+              >
+                <option value="">Select…</option>
+                {organizations.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+              <span className="hint">
+                Not listed? <Link href="/admin/organizations">Create the organisation</Link> first.
+              </span>
+            </div>
+          )}
           <div className="field">
             <label htmlFor="o-cat">Category</label>
             <select

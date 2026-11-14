@@ -12,6 +12,7 @@ export interface Me {
   email_verified: boolean;
   roles: string[];
   staff: boolean;
+  employer: boolean;
   mfa_verified: boolean;
   mfa_enrolled: boolean;
 }
@@ -40,5 +41,13 @@ export async function requireStaff(): Promise<Me> {
   if (!me) redirect('/admin/login');
   if (!me.staff) redirect('/admin/login');
   if (!me.mfa_verified) redirect('/admin/mfa');
+  return me;
+}
+
+/** For /employer: an account that signed up as an employer (not staff, no second factor). */
+export async function requireEmployer(): Promise<Me> {
+  const me = await getMe();
+  if (!me) redirect('/employer/login');
+  if (!me.employer) redirect('/employer/login');
   return me;
 }

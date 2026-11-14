@@ -271,7 +271,18 @@
     "verifyDone": "Your email is verified. You are signed in.",
     "verifyFailed": "This verification link has expired or was already used.",
     "continue": "Continue",
-    "emailVerificationOff": "Email verification is switched off in this test environment."
+    "emailVerificationOff": "Email verification is switched off in this test environment.",
+    "accountType": "I want to",
+    "typeSeeker": "Find opportunities",
+    "typeSeekerText": "Jobs, internships and scholarships. Apply, track, get alerts.",
+    "typeEmployer": "Hire (employer)",
+    "typeEmployerText": "Post jobs, internships and circulars and manage the applications.",
+    "company": "Company or organisation name",
+    "website": "Website (optional)",
+    "phone": "Contact phone (optional)",
+    "employerNote": "Staff review every post before it appears on the site. You can sign in to the employer dashboard right after.",
+    "postJobLink": "Hiring? Post a job",
+    "employerSignIn": "Employer sign-in"
   },
   "app": {
     "dashboard": "Your dashboard",
@@ -449,7 +460,8 @@
     "draft": "Legal pages are drafts pending review.",
     "staff": "Staff sign-in",
     "track": "Track an application",
-    "webJobs": "Jobs from the web"
+    "webJobs": "Jobs from the web",
+    "postJob": "Post a job (employers)"
   },
   "apply": {
     "title": "Apply on Circular2Action",
