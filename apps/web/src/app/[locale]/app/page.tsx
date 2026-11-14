@@ -5,6 +5,7 @@ import { Alert, Badge, DeadlineChip, Icon } from '@/components/ui';
 import { formatNumber, isLocale } from '@/i18n/config';
 import { getDictionary, t } from '@/i18n/dictionaries';
 import { apiGet } from '@/lib/api';
+import { ForYou } from '@/components/for-you';
 import { requireUser } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -23,11 +24,15 @@ export default async function Dashboard({ params }: { params: Promise<{ locale: 
   if (!isLocale(locale)) notFound();
   const d = getDictionary(locale);
   const me = await requireUser(locale, `/${locale}/app`);
-  const [prof, apps, savedIds] = await Promise.all([
+  const [prof, apps, savedIds, cats] = await Promise.all([
     apiGet<{ completeness: number }>('/api/v1/me/profile', { auth: true }),
     apiGet<App[]>('/api/v1/me/applications', { auth: true }),
     apiGet<string[]>('/api/v1/me/saved-ids', { auth: true }),
+    apiGet<Array<{ slug: string; name: string }>>(`/api/v1/categories?locale=${locale}`),
   ]);
+  const categoryNames = Object.fromEntries(
+    (cats.kind === 'ok' ? cats.data : []).map((c) => [c.slug, c.name]),
+  );
   const completeness = prof.kind === 'ok' ? prof.data.completeness : 0;
   const list = apps.kind === 'ok' ? apps.data : [];
   const now = new Date();
@@ -86,6 +91,15 @@ export default async function Dashboard({ params }: { params: Promise<{ locale: 
           {d.app.completeProfile} <Link href={`/${locale}/app/profile`}>{d.nav.profile}</Link>
         </Alert>
       ) : null}
+
+      <ForYou
+        locale={locale}
+        d={d}
+        savedIds={new Set(savedIds.kind === 'ok' ? savedIds.data : [])}
+        nextPath={`/${locale}/app`}
+        limit={5}
+        categoryNames={categoryNames}
+      />
 
       <h2>{d.app.upcoming}</h2>
       {upcoming.length > 0 ? (

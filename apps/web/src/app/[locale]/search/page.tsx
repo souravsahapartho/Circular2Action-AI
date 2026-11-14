@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { SearchBeacon } from '@/components/beacons';
 import { Page } from '@/components/chrome';
 import { OpportunityList } from '@/components/opportunity-list';
 import { EmptyState, ErrorState, Icon } from '@/components/ui';
@@ -39,6 +40,7 @@ export default async function Search({
       path={q ? `/search?q=${encodeURIComponent(q)}` : '/search'}
       me={me}
     >
+      {me && q ? <SearchBeacon term={q} /> : null}
       <h1>{d.search.title}</h1>
       <form role="search" className="searchbar" style={{ marginBottom: 24, maxWidth: 680 }}>
         <label htmlFor="q" className="sr-only">

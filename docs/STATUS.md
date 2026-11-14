@@ -39,7 +39,18 @@ Plan: `docs/PLAN_v1.2_PORTAL.md`. Migration `0003_portal.sql` (78 base tables).
 - **Jobs from the web**: connectors for Arbeitnow and Remotive (no key needed) and Google Programmable Search (off until `GOOGLE_CSE_API_KEY` and `GOOGLE_CSE_CX` are set). Listings are cached (title, company, place, 500-character snippet, original link), refreshed lazily every 6 hours when the public feed is read or from the portal, and always shown as "From the web, not verified". Staff can hide any listing.
 - Verification: 9 + 6 new unit tests, a 6-test TiDB suite (apply once, duplicate apply, public tracking without personal data, permissions, transitions, private notes, audit rows, withdraw, apply_mode, feed upsert/hide/failure), and a walk through a real browser: register, apply, tracking ID, public track by a lower-case ID with spaces, staff sign-in with MFA, status change shown on the public tracking page, web listings (316 real jobs fetched).
 
-Totals at last run: 190+ unit tests (api 173, eligibility 73, web 10, others 47) + 62 TiDB tests passing; `tsc` clean in all packages; ESLint clean.
+## Plan v1.3: suggestions, interest alerts, richer home (2026-11-14)
+
+Plan: addendum in `docs/PLAN_v1.2_PORTAL.md`. Migration `0004_interests.sql` (80 base tables).
+
+- **Suggestions ("For you")**: a transparent weighted score, not a black box. Signals: interests the person sets (kinds, keywords, places), activity (view 1, search 1, web job click 1, save 3, track 4, apply 5, half-life 21 days, 90-day window), eligibility against the saved profile, freshness and urgency. Items already saved, tracked or applied are left out. Every suggestion shows why (reason chips). Web jobs are matched on the same keywords and learned words. Pure scoring in `modules/recommend/score.ts`; database side in `service.ts`.
+- **Alerts in the app**: job match (score at or above 4.5, once per opportunity), deadline reminder for saved or tracked items (72 h and 24 h slots), application update when staff change a site application (only steps marked visible). Created when the person opens the site (throttled to 10 minutes), when staff publish (fan-out to people with alerts on) and on status changes. A bell with the unread count, a Notifications page and an Interests page. Email waits for a provider; a scheduler (S-6) will later make reminders independent of visits.
+- **Privacy controls**: "Personalise with my activity" switch (off stops recording and ignores history), "Clear my activity", both tables deleted with the account (registry), activity never shown to staff.
+- **Home page** redesigned: hero with live preview cards and counters, search, calls to action, stat band, categories, for-you (or a sign-up teaser), closing soon, latest, web jobs, six feature cards, steps, FAQ, call to action. Mobile header fixed to one line.
+- Bugs found by the tests and the browser walk-through and fixed: Bangla words were split at vowel signs in keyword matching (marks are not letters), the interests form sent a field the API refused, web job snippets from double-encoded HTML showed raw tags.
+- Verification: 14 scoring unit tests, 9 TiDB tests (preferences, activity de-duplication, personalise off, clear, automatic save/track recording, suggestions differ by person, explicit interests, cold start, alert dedupe and read state, reminders per slot, publish fan-out to the right person only, application update notification, deletion with the account); real browser: set interests, saw reasons, bell "1 unread", notification in Bangla.
+
+Totals at last run: unit tests api 187, eligibility 73, web 10, others 47; TiDB suite 71 tests; `tsc` clean; ESLint clean.
 
 ## NOT done (and why)
 

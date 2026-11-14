@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Db, Executor, Row } from '../../db/pool';
 import {
   applicantCanWithdraw,
@@ -367,8 +368,10 @@ export class ApplicationRepo {
     requestId?: string,
   ): Promise<StaffStatusResult> {
     return this.db.transaction(async (tx) => {
-      const [r] = await tx.query<Row & { status: string }>(
-        'SELECT status FROM site_applications WHERE id = :id FOR UPDATE',
+      const [r] = await tx.query<
+        Row & { status: string; user_id: string; tracking_code: string; opportunity_id: string }
+      >(
+        'SELECT status, user_id, tracking_code, opportunity_id FROM site_applications WHERE id = :id FOR UPDATE',
         { id },
       );
       if (!r) return { kind: 'not_found' } as const;
@@ -380,6 +383,34 @@ export class ApplicationRepo {
          VALUES (:a, :f, :t, :note, :actor, :pub, :now)`,
         { a: id, f: from, t: to, note, actor: actor.id, pub: isPublicNote ? 1 : 0, now },
       );
+      if (isPublicNote) {
+        // the applicant is told in the app (email waits for a provider)
+        const [opp] = await tx.query<Row & { title: string; title_alt: string | null }>(
+          'SELECT title, title_alt FROM opportunities WHERE id = :o',
+          { o: String(r.opportunity_id) },
+        );
+        await tx.execute(
+          `INSERT IGNORE INTO notifications (user_id, type, subject_type, subject_id, title_key, params, dedupe_key, created_at)
+           VALUES (:u, 'application_update', 'application', :a, 'application_update', :p, :d, :now)`,
+          {
+            u: String(r.user_id),
+            a: id,
+            p: JSON.stringify({
+              tracking_code: r.tracking_code,
+              status: to,
+              note: note ?? null,
+              title: opp?.title ?? '',
+              title_alt: opp?.title_alt ?? null,
+            }),
+            d: createHash('sha256')
+              .update(
+                ['application_update', String(r.user_id), id, to, now.toISOString()].join('|'),
+              )
+              .digest(),
+            now,
+          },
+        );
+      }
       await this.audit(tx, {
         actorId: actor.id,
         actorRole: actor.role,

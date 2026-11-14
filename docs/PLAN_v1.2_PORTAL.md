@@ -57,3 +57,43 @@ Staff portal: `/admin/login`, dashboard (counts, recent applications, recent act
 ## 8. Not in this step
 
 Email notifications, employer-side accounts, file attachments (needs R2, gate S-8), Google connector activation (needs the owner's key), scheduled automatic refresh (S-6 scheduler); refresh runs lazily on read and from the staff button.
+
+---
+
+# Addendum v1.3: recommendations, interest alerts, richer home (2026-11-14)
+
+Owner request: suggest the kinds of jobs a person is interested in (as LinkedIn does), send automatic notifications for those kinds, learn from what each person actually uses, make the home page and hero more attractive, and add whatever else makes the site complete.
+
+## A. What "learning from use" means here (and what it does not)
+
+A transparent scoring model, not a black box. Every suggestion says **why** it was suggested. No data leaves our database; there is no third-party model.
+
+Signals (per signed-in person):
+
+- **Explicit interests** the person sets: categories, keywords, preferred places, alerts on or off.
+- **Activity**: views of an opportunity, saves, tracking, applying, clicks on web jobs and searches. Weights: view 1, search 1, web job click 1, save 3, track 4, apply 5; each decays with a 21-day half-life.
+- **Eligibility** against the saved profile (eligible +2.5, not eligible -5).
+- **Freshness and urgency**: new in the last 7 days +0.4, closing within 7 days +0.6.
+
+Score = category (up to 4 from activity, +3 explicit) + place (up to 1.5 + 1.5 explicit) + keywords (explicit up to 4, learned from titles up to 3) + eligibility + urgency + freshness. Items already saved, tracked or applied are left out. With no signals yet, it falls back to "closing soon and eligible".
+
+Privacy controls (plan CON rules): "Personalise with my activity" switch (default on; off stops recording and ignores history), "Clear my activity" button, activity rows older than 90 days are ignored and deleted with the account. Activity is never shown to staff.
+
+## B. Notifications (in app; email waits for a provider)
+
+Types: `job_match` (new or existing opportunity scores above the threshold for this person), `deadline_reminder` (saved or tracked opportunity closing within 72 hours), `application_update` (staff moved your site application). All use the existing `notifications` table with a dedupe key, so a person is told once.
+
+When they are created: when the person opens the site (throttled to every 10 minutes), when staff **publish** an opportunity (fan-out to people with alerts on whose score passes the threshold), and when staff change an application's status. A scheduler (gate S-6) later makes reminders independent of visits.
+
+## C. Data (migration `0004_interests.sql`)
+
+`job_preferences` (user_id, categories, keywords, location_slugs, alerts_enabled, personalize, last_matched_at), `interaction_events` (user_id, kind, opportunity_id, listing_id, category_slug, location_slug, term, created_at). Both deleted with the account (privacy registry).
+
+## D. API and web
+
+API: `GET/PUT /me/preferences`, `DELETE /me/activity`, `POST /me/interactions`, `GET /me/recommendations`, `GET /me/notifications`, `POST /me/notifications/read`, `GET /me/notifications/unread-count`.
+Web: Interests page, "For you" on home and dashboard (with reasons), bell with unread count, Notifications page, recorded views, a redesigned home page (hero, live counters, featured, for-you, web jobs, how it works, why us, FAQ, call to action).
+
+## E. Tests
+
+Unit: scoring (category, keyword, location, eligibility, exclusion, decay, cold start, reasons), keyword extraction. TiDB: interactions recorded and cleared, personalise off stops recording, recommendations differ after a person saves different categories, notifications deduped, publish fan-out reaches a matching person only, deadline reminder, application update notification, privacy registry.

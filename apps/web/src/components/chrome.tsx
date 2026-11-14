@@ -4,6 +4,7 @@ import type { Locale } from '@/i18n/config';
 import type { Dictionary } from '@/i18n/dictionaries';
 import { getMe, type Me } from '@/lib/session';
 import { AccountMenu } from './account-menu';
+import { NotificationBell } from './notification-bell';
 import { MobileNav, type MobileItem } from './mobile-nav';
 import { Icon, Logo } from './ui';
 
@@ -14,6 +15,8 @@ export type Section =
   | 'webjobs'
   | 'track'
   | 'applications'
+  | 'interests'
+  | 'notifications'
   | 'saved'
   | 'tracker'
   | 'profile'
@@ -52,6 +55,12 @@ function navItems(
         section: 'dashboard',
       },
       { href: `/${locale}/app/saved`, label: dict.nav.saved, icon: 'bookmark', section: 'saved' },
+      {
+        href: `/${locale}/app/interests`,
+        label: dict.nav.interests,
+        icon: 'sliders',
+        section: 'interests',
+      },
       {
         href: `/${locale}/app/applications`,
         label: dict.nav.applications,
@@ -116,6 +125,13 @@ function Header({
             </Link>
           </div>
           {me ? (
+            <NotificationBell
+              locale={locale}
+              label={dict.notifications.bell}
+              unreadLabel={dict.notifications.unread}
+            />
+          ) : null}
+          {me ? (
             <AccountMenu
               locale={locale}
               name={me.display_name}
@@ -126,6 +142,8 @@ function Header({
                 saved: dict.nav.saved,
                 tracker: dict.nav.tracker,
                 applications: dict.nav.applications,
+                interests: dict.nav.interests,
+                notifications: dict.nav.notifications,
                 settings: dict.nav.settings,
                 signOut: dict.nav.signOut,
                 signIn: dict.nav.signIn,

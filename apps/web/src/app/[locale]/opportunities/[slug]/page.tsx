@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
 import { SaveButton } from '@/components/save-button';
 import { ApplyActions } from '@/components/apply-actions';
+import { ViewBeacon } from '@/components/beacons';
 import {
   Alert,
   Badge,
@@ -90,6 +91,7 @@ export default async function Detail({
           { label: o.title },
         ]}
       />
+      {me ? <ViewBeacon opportunityId={o.id} /> : null}
       <div className="detail">
         <article>
           <div className="row-flex" style={{ marginBottom: 8 }}>

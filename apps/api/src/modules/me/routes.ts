@@ -1,4 +1,5 @@
 import { evaluate, type Requirement } from '@c2a/eligibility';
+import type { RecommendService } from '../recommend/service';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { Clock } from '../../platform/clock';
@@ -106,7 +107,13 @@ const toDate = (v: string | null | undefined) =>
 /** Profile, saved opportunities, tracker and eligibility for the signed-in user (plan Modules C, G). */
 export function registerMe(
   app: FastifyInstance,
-  deps: { repo: MeRepo; opportunities: OpportunityRepo; clock: Clock; guard: GuardOptions },
+  deps: {
+    repo: MeRepo;
+    opportunities: OpportunityRepo;
+    clock: Clock;
+    guard: GuardOptions;
+    activity?: Pick<RecommendService, 'record'>;
+  },
 ): void {
   const { repo, opportunities, clock, guard } = deps;
   const r = (
@@ -182,6 +189,9 @@ export function registerMe(
     const id = bigintId((req.params as { opportunityId: string }).opportunityId);
     if (!(await repo.save(req.auth!.userId, id)))
       throw new AppError('NOT_FOUND', 'Opportunity not found.');
+    await deps.activity
+      ?.record(req.auth!.userId, { kind: 'save', opportunityId: id })
+      .catch(() => false);
     return reply.status(204).send();
   });
   r('DELETE', '/api/v1/me/saved/:opportunityId', async (req, reply) => {
@@ -242,6 +252,11 @@ export function registerMe(
     if (created === 'not_found') throw new AppError('NOT_FOUND', 'Opportunity not found.');
     if (created === 'exists')
       throw new AppError('ALREADY_EXISTS', 'You are already tracking this opportunity.');
+    if ('opportunity_id' in b) {
+      await deps.activity
+        ?.record(req.auth!.userId, { kind: 'track', opportunityId: b.opportunity_id })
+        .catch(() => false);
+    }
     return reply.status(201).send({ data: created });
   });
   r('GET', '/api/v1/me/applications/:id', async (req) => {

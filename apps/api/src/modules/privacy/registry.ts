@@ -43,6 +43,8 @@ export const DELETION_REGISTRY: readonly RegistryEntry[] = [
   del('eligibility_results'),
   del('application_records'),
   del('site_applications'),
+  del('job_preferences'),
+  del('interaction_events'),
   del('user_documents'),
   del('notifications'),
   del('notification_preferences'),

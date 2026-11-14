@@ -1,6 +1,7 @@
 import { formatDate, type Locale } from '@/i18n/config';
 import { t, type Dictionary } from '@/i18n/dictionaries';
 import { safeHref } from '@/lib/urls';
+import { TrackedExternalLink } from './beacons';
 import { Icon } from './ui';
 
 export interface WebJob {
@@ -22,7 +23,18 @@ export const SOURCE_LABEL: Record<string, string> = {
 };
 
 /** A job found on the web. Always labelled with its source and never presented as verified. */
-export function WebJobCard({ job, locale, d }: { job: WebJob; locale: Locale; d: Dictionary }) {
+export function WebJobCard({
+  job,
+  locale,
+  d,
+  tracked = false,
+}: {
+  job: WebJob;
+  locale: Locale;
+  d: Dictionary;
+  /** record clicks as activity (signed-in pages only; the API ignores it when personalisation is off) */
+  tracked?: boolean;
+}) {
   const href = safeHref(job.url);
   const source = SOURCE_LABEL[job.source] ?? job.source;
   return (
@@ -46,9 +58,15 @@ export function WebJobCard({ job, locale, d }: { job: WebJob; locale: Locale; d:
       <div className="row-flex" style={{ justifyContent: 'space-between', marginTop: 8 }}>
         <span className="muted small">{d.webJobs.notice}</span>
         {href ? (
-          <a className="btn secondary sm" href={href} rel="noopener nofollow" target="_blank">
-            <Icon name="external" size="sm" /> {d.webJobs.apply}
-          </a>
+          tracked ? (
+            <TrackedExternalLink href={href} listingId={job.id} className="btn secondary sm">
+              <Icon name="external" size="sm" /> {d.webJobs.apply}
+            </TrackedExternalLink>
+          ) : (
+            <a className="btn secondary sm" href={href} rel="noopener nofollow" target="_blank">
+              <Icon name="external" size="sm" /> {d.webJobs.apply}
+            </a>
+          )
         ) : null}
       </div>
     </article>

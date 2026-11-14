@@ -8,6 +8,7 @@ import { LIMITS, RateLimiter } from '../../platform/rate-limit';
 import { route, type GuardOptions } from '../auth/guard';
 import type { MeRepo } from '../me/repo';
 import type { OpportunityRepo } from '../opportunities/repo';
+import type { RecommendService } from '../recommend/service';
 import { normalizeTrackingCode, SITE_STATUSES } from './logic';
 import type { ApplicationRepo } from './repo';
 
@@ -62,6 +63,7 @@ export function registerApplications(
     opportunities: OpportunityRepo;
     clock: Clock;
     guard: GuardOptions;
+    activity?: Pick<RecommendService, 'record'>;
   },
 ): void {
   const { repo, me, opportunities, clock, guard } = deps;
@@ -139,6 +141,11 @@ export function registerApplications(
       case 'no_user':
         throw new AppError('FORBIDDEN', 'This account cannot apply.');
       default:
+        if (res.kind === 'created') {
+          await deps.activity
+            ?.record(req.auth!.userId, { kind: 'apply', opportunityId: id })
+            .catch(() => false);
+        }
         return reply.status(res.kind === 'created' ? 201 : 200).send({
           data: {
             id: res.id,

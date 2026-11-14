@@ -90,7 +90,7 @@ export default async function WebJobs({
           </p>
           <div className="stack">
             {res.data.map((j) => (
-              <WebJobCard key={j.id} job={j} locale={locale} d={d} />
+              <WebJobCard key={j.id} job={j} locale={locale} d={d} tracked={me !== null} />
             ))}
           </div>
           <Pagination

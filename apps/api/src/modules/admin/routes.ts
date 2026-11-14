@@ -124,7 +124,7 @@ const actorOf = (req: FastifyRequest) => ({
 /** Staff API (plan 12.2 Admin). Every route needs a permission, and a staff session needs its second factor. */
 export function registerAdmin(
   app: FastifyInstance,
-  deps: { repo: AdminRepo; guard: GuardOptions },
+  deps: { repo: AdminRepo; guard: GuardOptions; onPublished?: (id: string) => void },
 ): void {
   const { repo, guard } = deps;
 
@@ -225,6 +225,7 @@ export function registerAdmin(
             ],
           );
         }
+        if (action === 'publish') deps.onPublished?.(id);
         return { data: await repo.get(id) };
       },
     });

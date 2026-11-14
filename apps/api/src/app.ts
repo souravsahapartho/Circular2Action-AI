@@ -16,6 +16,8 @@ import { registerAdmin } from './modules/admin/routes';
 import type { ListingRepo } from './modules/listings/repo';
 import { registerListings } from './modules/listings/routes';
 import type { MeRepo } from './modules/me/repo';
+import type { RecommendService } from './modules/recommend/service';
+import { registerRecommend } from './modules/recommend/routes';
 import { registerMe } from './modules/me/routes';
 import type { OpportunityRepo } from './modules/opportunities/repo';
 import { registerOpportunities } from './modules/opportunities/routes';
@@ -41,6 +43,7 @@ export interface AppDeps {
   admin?: { repo: AdminRepo };
   applications?: { repo: ApplicationRepo };
   listings?: { repo: ListingRepo };
+  recommend?: { service: RecommendService };
 }
 
 /** Build the Fastify app. Routes are added per module; this is the platform skeleton (Phase 0). */
@@ -138,9 +141,27 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
   if (deps.opportunities)
     registerOpportunities(app, { repo: deps.opportunities.repo, clock, guard });
-  if (deps.admin) registerAdmin(app, { repo: deps.admin.repo, guard });
+  if (deps.admin) {
+    registerAdmin(app, {
+      repo: deps.admin.repo,
+      guard,
+      ...(deps.recommend
+        ? {
+            onPublished: (id: string) => {
+              void deps.recommend!.service.fanOut(id).catch(() => undefined);
+            },
+          }
+        : {}),
+    });
+  }
   if (deps.me && deps.opportunities) {
-    registerMe(app, { repo: deps.me.repo, opportunities: deps.opportunities.repo, clock, guard });
+    registerMe(app, {
+      repo: deps.me.repo,
+      opportunities: deps.opportunities.repo,
+      clock,
+      guard,
+      ...(deps.recommend ? { activity: deps.recommend.service } : {}),
+    });
   }
 
   if (deps.me && deps.opportunities && deps.applications) {
@@ -150,10 +171,12 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       opportunities: deps.opportunities.repo,
       clock,
       guard,
+      ...(deps.recommend ? { activity: deps.recommend.service } : {}),
     });
   }
 
   if (deps.listings) registerListings(app, { repo: deps.listings.repo, guard });
+  if (deps.recommend) registerRecommend(app, { service: deps.recommend.service, clock, guard });
 
   if (deps.auth) {
     registerAuth(app, {

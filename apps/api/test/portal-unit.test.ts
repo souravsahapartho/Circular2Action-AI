@@ -134,3 +134,13 @@ describe('web job connectors (fixtures, no network)', () => {
     expect(g[0]).toMatchObject({ company: 'jobs.example', snippet: 'Open roles' });
   });
 });
+
+describe('snippets from feeds that double-encode their HTML', () => {
+  it('turns entity-encoded markup into plain text', () => {
+    const encoded =
+      '&lt;h1&gt;Senior Engineer&lt;/h1&gt; &lt;p&gt;&amp;nbsp;&lt;/p&gt; &lt;p&gt;&lt;strong&gt;Build &amp;quot;things&amp;quot;&lt;/strong&gt;&lt;/p&gt;';
+    expect(cleanSnippet(encoded)).toBe('Senior Engineer Build "things"');
+    expect(cleanSnippet('<p>&#169; &#x41; &amp;amp; ok</p>')).toBe('© A & ok');
+    expect(cleanSnippet('&lt;script&gt;alert(1)&lt;/script&gt;ok')).toBe('ok');
+  });
+});

@@ -26,24 +26,48 @@ export interface Connector {
 }
 
 const NAMED: Record<string, string> = {
-  '&amp;': '&',
-  '&lt;': '<',
-  '&gt;': '>',
-  '&quot;': '"',
-  '&#39;': "'",
-  '&apos;': "'",
-  '&nbsp;': ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  ndash: '-',
+  mdash: '-',
+  rsquo: "'",
+  lsquo: "'",
+  rdquo: '"',
+  ldquo: '"',
 };
 
-/** HTML to short plain text. The snippet is a teaser, never the whole description. */
+function decodeEntities(text: string): string {
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, body: string) => {
+    if (body[0] === '#') {
+      const code =
+        body[1]?.toLowerCase() === 'x' ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+      return Number.isFinite(code) && code > 0 && code < 0x110000
+        ? String.fromCodePoint(code)
+        : ' ';
+    }
+    return NAMED[body.toLowerCase()] ?? m;
+  });
+}
+
+/**
+ * HTML to short plain text. Some feeds send HTML that is itself entity-encoded, so decode and strip until nothing
+ * changes (at most three rounds). The snippet is a teaser, never the whole description.
+ */
 export function cleanSnippet(html: unknown, max = 500): string | null {
   if (typeof html !== 'string') return null;
-  const text = html
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&(?:amp|lt|gt|quot|#39|apos|nbsp);/g, (m) => NAMED[m] ?? m)
-    .replace(/\s+/g, ' ')
-    .trim();
+  let text = html;
+  for (let i = 0; i < 3; i++) {
+    const next = decodeEntities(
+      text.replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' '),
+    );
+    if (next === text) break;
+    text = next;
+  }
+  text = text.replace(/\s+/g, ' ').trim();
   if (!text) return null;
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }

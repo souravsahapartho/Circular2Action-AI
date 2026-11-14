@@ -8,6 +8,7 @@ import { ApplicationRepo } from './modules/applications/repo';
 import { ListingRepo } from './modules/listings/repo';
 import { buildConnectors } from './modules/listings/sources';
 import { MeRepo } from './modules/me/repo';
+import { RecommendService } from './modules/recommend/service';
 import { OpportunityRepo } from './modules/opportunities/repo';
 import { systemClock } from './platform/clock';
 import { loadConfig } from './platform/config';
@@ -21,13 +22,16 @@ async function main(): Promise<void> {
         connectionLimit: config.DATABASE_POOL_SIZE,
       })
     : null;
+  const meRepo = db ? new MeRepo(db) : null;
+  const oppRepo = db ? new OpportunityRepo(db) : null;
   const app = buildApp({
     config,
     readiness: [databaseCheck(db)],
     ...(db
       ? {
-          opportunities: { repo: new OpportunityRepo(db) },
-          me: { repo: new MeRepo(db) },
+          opportunities: { repo: oppRepo! },
+          me: { repo: meRepo! },
+          recommend: { service: new RecommendService(db, meRepo!, oppRepo!, systemClock) },
           admin: { repo: new AdminRepo(db) },
           applications: { repo: new ApplicationRepo(db) },
           listings: {
