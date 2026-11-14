@@ -1,7 +1,9 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
+import { AlreadySignedIn } from '@/components/already-signed-in';
 import { AuthShell } from '@/components/auth-shell';
-import { SignInForm, safeNext } from '@/components/auth-forms';
+import { SignInForm } from '@/components/auth-forms';
+import { safeNext } from '@/lib/safe-next';
 import { isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
 import { getMe } from '@/lib/session';
@@ -21,7 +23,25 @@ export default async function SignIn({
   const d = getDictionary(locale);
   const next = (await searchParams).next ?? null;
   const me = await getMe();
-  if (me) redirect(safeNext(next, me.staff ? '/admin' : `/${locale}/app`));
+  if (me) {
+    const home = me.staff ? '/admin' : me.employer ? '/employer' : `/${locale}/app`;
+    return (
+      <AuthShell
+        locale={locale}
+        dict={d}
+        path="/sign-in"
+        title={d.auth.signInTitle}
+        lead={d.auth.signInLead}
+      >
+        <AlreadySignedIn
+          locale={locale}
+          email={me.email}
+          continueHref={safeNext(next, home)}
+          returnTo={`/${locale}/sign-in`}
+        />
+      </AuthShell>
+    );
+  }
   return (
     <AuthShell
       locale={locale}
