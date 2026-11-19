@@ -1,3 +1,4 @@
+import { mixRegions } from '../listings/repo';
 import { createHash } from 'node:crypto';
 import { evaluate, type Requirement } from '@c2a/eligibility';
 import type { Db, Executor, Row } from '../../db/pool';
@@ -61,6 +62,8 @@ export interface RecommendedWebJob {
   snippet: string | null;
   url: string;
   tags: string[];
+  category_slug: string;
+  region: string;
   posted_at: string | null;
   score: number;
   reasons: Reason[];
@@ -649,10 +652,14 @@ export class RecommendService {
     prefs: Preferences,
     affinity: Affinity | null,
     now: Date,
-    f: { q?: string; source?: string },
+    f: { q?: string; source?: string; category?: string },
   ): Promise<RecommendedWebJob[]> {
     const where = ['hidden = 0'];
+    if (f.category) {
+      where.push('category_slug = :category');
+    }
     const params: Record<string, unknown> = {};
+    if (f.category) params.category = f.category;
     if (f.source) {
       where.push('source = :source');
       params.source = f.source;
@@ -673,10 +680,12 @@ export class RecommendService {
         snippet: string | null;
         url: string;
         tags: unknown;
+        category_slug: string;
+        region: string;
         posted_at: Date | null;
       }
     >(
-      `SELECT id, source, title, company, location, snippet, url, tags, posted_at FROM external_listings
+      `SELECT id, source, title, company, location, snippet, url, tags, category_slug, region, posted_at FROM external_listings
        WHERE ${where.join(' AND ')} ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT 1500`,
       params,
     );
@@ -708,17 +717,25 @@ export class RecommendService {
           snippet: r.snippet,
           url: r.url,
           tags,
+          category_slug: r.category_slug,
+          region: r.region,
           posted_at: r.posted_at ? r.posted_at.toISOString() : null,
           score: sc.score,
           reasons: sc.reasons,
         };
       })
       .sort((x, y) => y.score - x.score || (y.posted_at ?? '').localeCompare(x.posted_at ?? ''));
-    return diversify(scored);
+    // Bangladeshi listings first (about three in four), each side still in order of fit; then spread companies out
+    const bd = scored.filter((x) => x.region === 'bd');
+    const foreign = scored.filter((x) => x.region !== 'bd');
+    return diversify(mixRegions(bd, foreign, 3));
   }
 
   /** The whole web jobs list ordered by relevance to this person (used by the web jobs page). */
-  async webFeed(userId: string, f: { q?: string; source?: string; limit: number; offset: number }) {
+  async webFeed(
+    userId: string,
+    f: { q?: string; source?: string; category?: string; limit: number; offset: number },
+  ) {
     const now = this.clock.now();
     const prefs = await this.getPreferences(userId);
     const events = prefs.personalize ? await this.events(userId, now) : [];
@@ -726,6 +743,7 @@ export class RecommendService {
     const ranked = await this.rankedWeb(prefs, affinity, now, {
       ...(f.q ? { q: f.q } : {}),
       ...(f.source ? { source: f.source } : {}),
+      ...(f.category ? { category: f.category } : {}),
     });
     return {
       items: ranked.slice(f.offset, f.offset + f.limit),

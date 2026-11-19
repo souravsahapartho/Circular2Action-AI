@@ -553,7 +553,21 @@
     "apply": "Apply on original site",
     "sort": "Order",
     "sortRelevant": "Most relevant to me",
-    "sortNew": "Newest first"
+    "sortNew": "Newest first",
+    "viewDetails": "View details",
+    "applyOn": "Apply on {source}",
+    "applyHint": "You will go to the original site to apply. Circular2Action does not take this application.",
+    "aboutJob": "About this job",
+    "noDescription": "The original listing has the full description.",
+    "backToList": "Back to web jobs",
+    "notFound": "This job is no longer available.",
+    "notFoundText": "It may have been removed from the original site.",
+    "sourceInfo": "Source",
+    "location": "Location",
+    "company": "Company",
+    "kind": "Kind",
+    "similarTitle": "More like this",
+    "mixedNote": "From the web"
   },
   "forYou": {
     "title": "Recommended for you",

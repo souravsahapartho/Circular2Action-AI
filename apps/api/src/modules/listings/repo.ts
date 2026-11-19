@@ -1,6 +1,14 @@
 import type { Db, Row } from '../../db/pool';
 import type { Clock } from '../../platform/clock';
-import type { Connector, FetchFn, FoundListing } from './sources';
+import {
+  classifyListing,
+  regionOf,
+  cleanDescription,
+  GREENHOUSE_BOARDS,
+  type Connector,
+  type FetchFn,
+  type FoundListing,
+} from './sources';
 
 export interface ListingRow {
   id: string;
@@ -11,6 +19,8 @@ export interface ListingRow {
   snippet: string | null;
   url: string;
   tags: string[];
+  category_slug: string;
+  region: string;
   posted_at: string | null;
   fetched_at: string;
   hidden: boolean;
@@ -25,6 +35,8 @@ interface DbListing extends Row {
   snippet: string | null;
   url: string;
   tags: unknown;
+  category_slug: string;
+  region: string;
   posted_at: Date | null;
   fetched_at: Date;
   hidden: number;
@@ -39,14 +51,32 @@ const toRow = (r: DbListing): ListingRow => ({
   snippet: r.snippet,
   url: r.url,
   tags: (typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags) ?? [],
+  category_slug: r.category_slug,
+  region: r.region,
   posted_at: r.posted_at ? r.posted_at.toISOString() : null,
   fetched_at: r.fetched_at.toISOString(),
   hidden: Number(r.hidden) === 1,
 });
 
 const COLUMNS =
-  'id, source, title, company, location, snippet, url, tags, posted_at, fetched_at, hidden';
+  'id, source, title, company, location, snippet, url, tags, category_slug, region, posted_at, fetched_at, hidden';
 const STALE_MS = 6 * 60 * 60 * 1000;
+/** Bangladeshi listings come first: about three in four. The rest are foreign ones. */
+export const BD_SHARE = 0.75;
+const BD_PATTERN = 3;
+
+/** Interleaves two lists: `every` from the first, then one from the second. Whatever is left of either is appended. */
+export function mixRegions<T>(first: T[], second: T[], every = 3): T[] {
+  const out: T[] = [];
+  let a = 0;
+  let b = 0;
+  while (a < first.length || b < second.length) {
+    for (let i = 0; i < every && a < first.length; i++) out.push(first[a++]!);
+    if (b < second.length) out.push(second[b++]!);
+    else if (a >= first.length) break;
+  }
+  return out;
+}
 
 /** Cache of jobs found on the web: upsert from connectors, read for the site and the staff portal. */
 export class ListingRepo {
@@ -101,16 +131,20 @@ export class ListingRepo {
             JSON.stringify(l.tags),
             l.posted_at,
             now,
+            l.description ?? null,
+            classifyListing(l.title, l.tags),
+            regionOf(source, l.url, l.location),
           );
-          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         })
         .join(', ');
       await this.db.execute(
-        `INSERT INTO external_listings (source, external_id, title, company, location, snippet, url, tags, posted_at, fetched_at)
+        `INSERT INTO external_listings (source, external_id, title, company, location, snippet, url, tags, posted_at, fetched_at, description, category_slug, region)
          VALUES ${marks}
          ON DUPLICATE KEY UPDATE title = VALUES(title), company = VALUES(company), location = VALUES(location),
            snippet = VALUES(snippet), url = VALUES(url), tags = VALUES(tags), posted_at = VALUES(posted_at),
-           fetched_at = VALUES(fetched_at)`,
+           fetched_at = VALUES(fetched_at), description = COALESCE(VALUES(description), description),
+           category_slug = VALUES(category_slug), region = VALUES(region)`,
         values,
       );
     }
@@ -176,6 +210,7 @@ export class ListingRepo {
   async list(q: {
     q?: string;
     source?: string;
+    category?: string;
     limit: number;
     offset: number;
     includeHidden?: boolean;
@@ -186,6 +221,10 @@ export class ListingRepo {
       where.push('source = :source');
       params.source = q.source;
     }
+    if (q.category) {
+      where.push('category_slug = :category');
+      params.category = q.category;
+    }
     if (q.q) {
       where.push(
         '(LOWER(title) LIKE :like OR LOWER(company) LIKE :like OR LOWER(snippet) LIKE :like OR LOWER(location) LIKE :like)',
@@ -193,16 +232,78 @@ export class ListingRepo {
       params.like = `%${q.q.toLowerCase().replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
     }
     const w = where.join(' AND ');
-    const rows = await this.db.query<DbListing>(
-      `SELECT ${COLUMNS} FROM external_listings WHERE ${w}
-       ORDER BY COALESCE(posted_at, fetched_at) DESC, id DESC LIMIT :limit OFFSET :offset`,
-      params,
-    );
+    const page = (extra: string, limit: number, offset: number) =>
+      this.db.query<DbListing>(
+        `SELECT ${COLUMNS} FROM external_listings WHERE ${w}${extra}
+         ORDER BY COALESCE(posted_at, fetched_at) DESC, id DESC LIMIT ${Math.max(0, Math.floor(limit))} OFFSET ${Math.max(0, Math.floor(offset))}`,
+        params,
+      );
+    let rows: DbListing[];
+    if (q.includeHidden || q.source) {
+      rows = await page('', q.limit, q.offset);
+    } else {
+      // about three Bangladeshi listings to one foreign one, in that rhythm; the other side fills in when one runs out
+      const nBd = Math.ceil(q.limit * BD_SHARE);
+      const offBd = Math.floor(q.offset * BD_SHARE);
+      const bd = await page(" AND region = 'bd'", nBd, offBd);
+      const wantIntl = q.limit - bd.length;
+      const intl = await page(" AND region <> 'bd'", wantIntl, q.offset - offBd);
+      rows = mixRegions(bd, intl, BD_PATTERN).slice(0, q.limit);
+    }
     const [c] = await this.db.query<Row & { n: number }>(
       `SELECT COUNT(*) AS n FROM external_listings WHERE ${w}`,
       params,
     );
     return { items: rows.map(toRow), total: Number(c!.n) };
+  }
+
+  /** One visible listing with its full description, or null. Fetches a missing Greenhouse description once. */
+  async get(id: string): Promise<(ListingRow & { description: string | null }) | null> {
+    const read = () =>
+      this.db.query<
+        DbListing & {
+          external_id: string;
+          description: string | null;
+          detail_fetched_at: Date | null;
+        }
+      >(
+        `SELECT ${COLUMNS}, external_id, description, detail_fetched_at FROM external_listings WHERE id = :id AND hidden = 0`,
+        { id },
+      );
+    let [r] = await read();
+    if (!r) return null;
+    if (r.description === null && r.source === 'greenhouse' && r.detail_fetched_at === null) {
+      await this.ensureGreenhouse(r.external_id);
+      [r] = await read();
+      if (!r) return null;
+    }
+    return { ...toRow(r), description: r.description ?? null };
+  }
+
+  /** Reads the job page of one company board (fixed hosts and boards only) and stores the description. */
+  private async ensureGreenhouse(externalId: string): Promise<void> {
+    const m = /^([a-z0-9-]{2,40})-(\d{1,20})$/.exec(externalId);
+    const known = m && GREENHOUSE_BOARDS.some(([b]) => b === m[1]);
+    let description: string | null = null;
+    if (m && known) {
+      try {
+        const res = await this.fetchFn(
+          `https://boards-api.greenhouse.io/v1/boards/${m[1]}/jobs/${m[2]}`,
+          { signal: AbortSignal.timeout(10_000) },
+        );
+        if (res.ok) {
+          const body = (await res.json()) as { content?: unknown };
+          description = cleanDescription(body.content);
+        }
+      } catch {
+        description = null;
+      }
+    }
+    await this.db.execute(
+      `UPDATE external_listings SET description = COALESCE(:d, description), detail_fetched_at = :now
+       WHERE source = 'greenhouse' AND external_id = :e`,
+      { d: description, now: this.clock.now(), e: externalId },
+    );
   }
 
   async setHidden(id: string, hidden: boolean): Promise<boolean> {

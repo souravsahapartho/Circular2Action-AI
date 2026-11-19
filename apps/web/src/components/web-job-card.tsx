@@ -3,6 +3,7 @@ import { t, type Dictionary } from '@/i18n/dictionaries';
 import { reasonText, type Reason } from '@/lib/reasons';
 import { safeHref } from '@/lib/urls';
 import { TrackedExternalLink } from './beacons';
+import Link from 'next/link';
 import { Icon } from './ui';
 
 export interface WebJob {
@@ -14,6 +15,7 @@ export interface WebJob {
   snippet: string | null;
   url: string;
   tags: string[];
+  category_slug?: string;
   posted_at: string | null;
 }
 
@@ -58,7 +60,9 @@ export function WebJobCard({
         </span>
         <span className="muted small">{t(d.webJobs.via, { source })}</span>
       </div>
-      <h3 style={{ margin: '8px 0 2px' }}>{job.title}</h3>
+      <h3 style={{ margin: '8px 0 2px' }}>
+        <Link href={`/${locale}/web-jobs/${job.id}`}>{job.title}</Link>
+      </h3>
       <p className="muted small" style={{ margin: 0 }}>
         {[job.company, job.location].filter(Boolean).join(' · ')}
         {job.posted_at
@@ -79,17 +83,22 @@ export function WebJobCard({
       ) : null}
       <div className="row-flex" style={{ justifyContent: 'space-between', marginTop: 8 }}>
         <span className="muted small">{d.webJobs.notice}</span>
-        {href ? (
-          tracked ? (
-            <TrackedExternalLink href={href} listingId={job.id} className="btn secondary sm">
-              <Icon name="external" size="sm" /> {d.webJobs.apply}
-            </TrackedExternalLink>
-          ) : (
-            <a className="btn secondary sm" href={href} rel="noopener nofollow" target="_blank">
-              <Icon name="external" size="sm" /> {d.webJobs.apply}
-            </a>
-          )
-        ) : null}
+        <span className="row-flex" style={{ gap: 8 }}>
+          <Link className="btn ghost sm" href={`/${locale}/web-jobs/${job.id}`}>
+            {d.webJobs.viewDetails}
+          </Link>
+          {href ? (
+            tracked ? (
+              <TrackedExternalLink href={href} listingId={job.id} className="btn secondary sm">
+                <Icon name="external" size="sm" /> {d.webJobs.apply}
+              </TrackedExternalLink>
+            ) : (
+              <a className="btn secondary sm" href={href} rel="noopener nofollow" target="_blank">
+                <Icon name="external" size="sm" /> {d.webJobs.apply}
+              </a>
+            )
+          ) : null}
+        </span>
       </div>
     </article>
   );

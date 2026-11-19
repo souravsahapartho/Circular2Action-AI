@@ -20,7 +20,13 @@ export default async function WebJobs({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ q?: string; source?: string; page?: string; sort?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    source?: string;
+    category?: string;
+    page?: string;
+    sort?: string;
+  }>;
 }) {
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
@@ -29,12 +35,16 @@ export default async function WebJobs({
   const me = await getMe();
   const q = (sp.q ?? '').trim().slice(0, 120);
   const source = SOURCE_RE.test(sp.source ?? '') ? sp.source : undefined;
+  const category = ['jobs', 'internships', 'scholarships'].includes(sp.category ?? '')
+    ? sp.category
+    : undefined;
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   // signed-in people see the jobs that fit their interests first, unless they ask for newest
   const relevant = me !== null && sp.sort !== 'new';
   const qs = new URLSearchParams({ limit: String(PAGE), offset: String((page - 1) * PAGE) });
   if (q) qs.set('q', q);
   if (source) qs.set('source', source);
+  if (category) qs.set('category', category);
   const [res, sources, cats] = await Promise.all([
     relevant
       ? apiGet<Array<WebJob & { reasons: Reason[] }>>(`/api/v1/me/web-jobs?${qs}`, { auth: true })
@@ -42,9 +52,7 @@ export default async function WebJobs({
     apiGet<Array<{ id: string; label: string; homepage: string; listings: number }>>(
       '/api/v1/listings/sources',
     ),
-    me
-      ? apiGet<Array<{ slug: string; name: string }>>(`/api/v1/categories?locale=${locale}`)
-      : Promise.resolve(null),
+    apiGet<Array<{ slug: string; name: string }>>(`/api/v1/categories?locale=${locale}`),
   ]);
   const total = res.kind === 'ok' ? (res.total ?? res.data.length) : 0;
   const link = (over: Record<string, string | undefined>) => {
@@ -52,6 +60,7 @@ export default async function WebJobs({
     const m = {
       q: q || undefined,
       source,
+      category,
       sort: sp.sort === 'new' ? 'new' : undefined,
       page: undefined,
       ...over,
@@ -79,6 +88,17 @@ export default async function WebJobs({
           placeholder={d.webJobs.searchPlaceholder}
           defaultValue={q}
         />
+        <label htmlFor="wj-cat" className="sr-only">
+          {d.webJobs.kind}
+        </label>
+        <select id="wj-cat" name="category" className="input" defaultValue={category ?? ''}>
+          <option value="">{d.explore.title}</option>
+          {(cats && cats.kind === 'ok' ? cats.data : []).map((c) => (
+            <option key={c.slug} value={c.slug}>
+              {c.name}
+            </option>
+          ))}
+        </select>
         <label htmlFor="wj-src" className="sr-only">
           {d.webJobs.sources}
         </label>

@@ -3413,3 +3413,55 @@ body:not(.portal) main {
     height: 100%;
   }
 }
+
+/* ---- web job detail ---- */
+.job-description {
+  max-width: 72ch;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.job-description p {
+  margin: 0 0 1em;
+}
+.job-description ul {
+  margin: 0 0 1em;
+  padding-left: 1.25em;
+}
+.job-description li {
+  margin-bottom: 0.35em;
+}
+.apply-bar {
+  display: none;
+}
+@media (max-width: 900px) {
+  .apply-bar {
+    display: block;
+    position: sticky;
+    bottom: 64px;
+    z-index: 20;
+    padding: 10px 0;
+    background: linear-gradient(to top, var(--paper-50) 70%, transparent);
+  }
+  .detail .aside-sticky .btn.block {
+    display: none;
+  }
+}
+/* a web job sitting among our own opportunities */
+.opp.web {
+  --accent: #5b7a99;
+  background: linear-gradient(135deg, #f4f8fc 0%, var(--paper-0) 60%);
+}
+.opp.web .web-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--info-700);
+  background: var(--info-100);
+  padding: 2px 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}

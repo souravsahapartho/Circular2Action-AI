@@ -4,6 +4,7 @@ import { Page } from '@/components/chrome';
 import { ResponsiveDetails } from '@/components/responsive-details';
 import type { Reason } from '@/lib/reasons';
 import { OpportunityList } from '@/components/opportunity-list';
+import type { WebJob } from '@/components/web-job-card';
 import { SponsoredStrip } from '@/components/sponsored-strip';
 import { EmptyState, ErrorState, Icon, Pagination } from '@/components/ui';
 import { formatNumber, isLocale } from '@/i18n/config';
@@ -50,7 +51,18 @@ export default async function Explore({
   });
   if (category) qs.set('category', category);
   if (location) qs.set('location', location);
-  const [list, cats, locs, saved] = await Promise.all([
+  // jobs found on the web of the same kind, slipped in after every third of ours (not when a place is chosen:
+  // web jobs have no place from our list). Signed-in people get the ones that fit them best first.
+  const webNeeded = Math.ceil(PAGE_SIZE / 3);
+  const webQs = new URLSearchParams({
+    limit: String(webNeeded),
+    offset: String((page - 1) * webNeeded),
+  });
+  if (category && ['jobs', 'internships', 'scholarships'].includes(category)) {
+    webQs.set('category', category);
+  }
+  const wantWeb = !location && (!category || webQs.has('category'));
+  const [list, cats, locs, saved, web] = await Promise.all([
     recommended
       ? apiGet<Array<OpportunitySummary & { reasons: Reason[] }>>(`/api/v1/me/feed?${qs}`, {
           auth: true,
@@ -59,7 +71,13 @@ export default async function Explore({
     apiGet<CategoryInfo[]>(`/api/v1/categories?locale=${locale}`),
     apiGet<LocationInfo[]>(`/api/v1/locations?locale=${locale}`),
     me ? apiGet<string[]>('/api/v1/me/saved-ids', { auth: true }) : Promise.resolve(null),
+    wantWeb
+      ? me
+        ? apiGet<WebJob[]>(`/api/v1/me/web-jobs?${webQs}`, { auth: true, timeoutMs: 8000 })
+        : apiGet<WebJob[]>(`/api/v1/listings?${webQs}`, { timeoutMs: 8000 })
+      : Promise.resolve(null),
   ]);
+  const webJobs = web && web.kind === 'ok' ? web.data : [];
   const savedIds = me ? new Set(saved && saved.kind === 'ok' ? saved.data : []) : null;
 
   const href = (over: Record<string, string | undefined>) => {
@@ -174,6 +192,8 @@ export default async function Explore({
                 dict={d}
                 now={new Date()}
                 savedIds={savedIds}
+                webJobs={webJobs}
+                webTracked={me !== null}
                 nextPath={`/${locale}/opportunities`}
                 {...(recommended
                   ? {

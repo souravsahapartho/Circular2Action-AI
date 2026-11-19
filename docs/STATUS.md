@@ -81,6 +81,15 @@ Plan: addendum in `docs/PLAN_v1.2_PORTAL.md`. Migration `0004_interests.sql` (80
 - Tests: new `diversify` and source-parser unit tests, 5 TiDB tests for sponsored posts, push and the board. A layout audit script (`scripts/layout-audit.js`) checked overflow and tap targets on 360, 768 and 1440 px wide screens.
 - Not done: email provider, real payments, scheduler for background alerts while the free instance sleeps (alerts and push go out while it is awake), Google search connector (needs keys).
 
+## Plan v1.6: web job detail pages, mixed into our lists, Bangladeshi sites first (2026-11-19)
+
+- **Detail page for every web job** (`/en/web-jobs/<id>`, also `/bn`): title, company, place, date, kind, the full description as clean text (never rendered as HTML), similar jobs, and an **Apply on <source>** button that goes straight to the original application page (opens in a new tab, counted as activity for suggestions). Greenhouse descriptions are fetched once when a job is first opened.
+- **Mixed into our lists**: each web job is classified as job, internship or scholarship (title first, then tags). On Explore, a web job of the matching kind follows every third of our own opportunities (three of ours, one from the web); ours always come first, and a signed-in person gets the web jobs that fit them best. The web jobs page can filter by kind.
+- **Bangladeshi sites first**: listings carry a region (Bangladeshi when they come from the Bangladesh-limited Google search, a known Bangladeshi site, or name a Bangladeshi place). The public list and the personalised list show about three Bangladeshi to one foreign listing.
+- **LinkedIn, Bikroy, JagoJobs, Skill.jobs, Chakri.com, Next Jobs, BDJobs** have no public job feeds and their terms forbid scraping, so they are read only through Google's Programmable Search limited to those sites (title, snippet and link, shown with a source label). The search engine "Bangladesh job sites" exists; it needs an API key set as `GOOGLE_CSE_API_KEY` (and `GOOGLE_CSE_CX`) on the API service. Search phrases are set with `GOOGLE_CSE_QUERY` (separated by |); the free quota allows about 100 searches a day.
+- No scholarship feed exists among the free job APIs, so scholarships on the site are our own plus any that Google finds.
+- Migration `0007_listing_details`. Tests: kind and region classification, mixing, detail page, lazy description, Bangladeshi-first feed.
+
 Totals at last run: unit tests api 194, eligibility 73, web 10, others 47; TiDB suite 93 tests; `tsc` clean; ESLint clean.
 
 ## NOT done (and why)

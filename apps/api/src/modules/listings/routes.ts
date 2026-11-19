@@ -11,6 +11,7 @@ const SOURCES = SOURCE_IDS;
 const listQuery = z.object({
   q: z.string().trim().max(120).optional(),
   source: z.enum(SOURCES).optional(),
+  category: z.enum(['jobs', 'internships', 'scholarships']).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
 });
@@ -37,6 +38,7 @@ export function registerListings(
       const { items, total } = await repo.list({
         ...(q.q ? { q: q.q } : {}),
         ...(q.source ? { source: q.source } : {}),
+        ...(q.category ? { category: q.category } : {}),
         limit: q.limit,
         offset: q.offset,
       });
@@ -44,6 +46,18 @@ export function registerListings(
         data: items.map(({ hidden: _hidden, ...rest }) => rest),
         meta: { total, limit: q.limit, offset: q.offset },
       };
+    },
+  });
+
+  route(app, guard, {
+    method: 'GET',
+    url: '/api/v1/listings/:id',
+    access: 'public',
+    handler: async (req) => {
+      const row = await repo.get(bigintId((req.params as { id: string }).id));
+      if (!row) throw new AppError('NOT_FOUND', 'Listing not found.');
+      const { hidden: _hidden, ...rest } = row;
+      return { data: rest };
     },
   });
 

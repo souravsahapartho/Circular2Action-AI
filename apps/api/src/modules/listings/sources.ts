@@ -8,6 +8,8 @@ export interface FoundListing {
   company: string | null;
   location: string | null;
   snippet: string | null;
+  /** the whole description as clean plain text (paragraphs separated by blank lines), or null */
+  description?: string | null;
   url: string;
   tags: string[];
   posted_at: Date | null;
@@ -91,6 +93,89 @@ export function cleanSnippet(html: unknown, max = 500): string | null {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
+/**
+ * HTML to readable plain text that keeps paragraphs and bullet points. Used for the detail page of a web job.
+ * Tags are removed (never rendered), entities decoded, and the result is capped at a paragraph boundary.
+ */
+export function cleanDescription(html: unknown, max = 8000): string | null {
+  if (typeof html !== 'string' || !html.trim()) return null;
+  let text = html;
+  for (let i = 0; i < 3; i++) {
+    const next = decodeEntities(
+      text
+        .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<li[^>]*>/gi, '\n• ')
+        .replace(/<\/(p|div|h[1-6]|ul|ol|tr|section|article)>/gi, '\n\n')
+        .replace(/<[^>]*>/g, ' '),
+    );
+    if (next === text) break;
+    text = next;
+  }
+  text = text
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((l) => l.replace(/[ \t\u00a0]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (!text) return null;
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const para = cut.lastIndexOf('\n\n');
+  return `${(para > max * 0.6 ? cut.slice(0, para) : cut).trimEnd()}…`;
+}
+
+/** Bangladeshi job sites: results from them (and anything placed in Bangladesh) are shown first. */
+export const BD_HOSTS = [
+  'bdjobs.com',
+  'bikroy.com',
+  'jagojobs.com',
+  'skill.jobs',
+  'chakri.com',
+  'nextjobs.com.bd',
+  'jobsbd.com',
+];
+const BD_PLACES =
+  /\b(bangladesh|dhaka|dacca|chattogram|chittagong|sylhet|khulna|rajshahi|rangpur|barishal|barisal|mymensingh|gazipur|narayanganj|cumilla|comilla)\b/i;
+
+export type ListingRegion = 'bd' | 'intl';
+
+/**
+ * Where a listing is from. Google results come from a search limited to Bangladesh, so they count as Bangladeshi;
+ * anything else is Bangladeshi when it is on a known Bangladeshi site or names a Bangladeshi place.
+ */
+export function regionOf(source: string, url: string, location: string | null): ListingRegion {
+  if (source === 'google') return 'bd';
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (BD_HOSTS.some((h) => host === h || host.endsWith('.' + h))) {
+      return 'bd';
+    }
+  } catch {
+    /* fall through to the place check */
+  }
+  return location && BD_PLACES.test(location) ? 'bd' : 'intl';
+}
+
+/** The kind a found listing belongs to, so it can sit in the matching list on the site. */
+export type ListingKind = 'jobs' | 'internships' | 'scholarships';
+
+const INTERN =
+  /\b(intern|interns|internship|internships|trainee|trainees|apprentice|apprenticeship|working student|werkstudent|praktikum|praktikant)\b/i;
+const SCHOLAR =
+  /\b(scholarship|scholarships|fellowship|fellowships|bursary|stipend|grant programme|grant program)\b/i;
+
+/** Classifies by the title first (what the poster calls it), then by tags. Everything else is a job. */
+export function classifyListing(title: string, tags: string[] = []): ListingKind {
+  if (SCHOLAR.test(title)) return 'scholarships';
+  if (INTERN.test(title)) return 'internships';
+  const t = tags.join(' ');
+  if (SCHOLAR.test(t)) return 'scholarships';
+  if (INTERN.test(t)) return 'internships';
+  return 'jobs';
+}
+
 export function httpUrlOrNull(v: unknown): string | null {
   if (typeof v !== 'string' || v.length > 1000) return null;
   try {
@@ -128,6 +213,7 @@ export function parseArbeitnow(body: unknown): FoundListing[] {
       company: str(j.company_name, 250),
       location: str(j.location, 250) ?? (j.remote === true ? 'Remote' : null),
       snippet: cleanSnippet(j.description),
+      description: cleanDescription(j.description),
       url,
       tags: tagList(j.tags),
       posted_at: created && !Number.isNaN(created.getTime()) ? created : null,
@@ -152,6 +238,7 @@ export function parseRemotive(body: unknown): FoundListing[] {
       company: str(j.company_name, 250),
       location: str(j.candidate_required_location, 250) ?? 'Remote',
       snippet: cleanSnippet(j.description),
+      description: cleanDescription(j.description),
       url,
       tags: [...tagList(j.tags), ...(str(j.category, 40) ? [str(j.category, 40)!] : [])].slice(
         0,
@@ -205,6 +292,7 @@ export function parseJobicy(body: unknown): FoundListing[] {
       company: str(j.companyName, 250),
       location: str(j.jobGeo, 250) ?? 'Remote',
       snippet: cleanSnippet(j.jobExcerpt),
+      description: cleanDescription(j.jobDescription) ?? cleanDescription(j.jobExcerpt),
       url,
       tags: [...tagList(j.jobIndustry), ...tagList(j.jobType)].slice(0, 8),
       posted_at: validDate(j.pubDate),
@@ -227,6 +315,7 @@ export function parseRemoteOk(body: unknown): FoundListing[] {
       company: str(j.company, 250),
       location: str(j.location, 250) ?? 'Remote',
       snippet: cleanSnippet(j.description),
+      description: cleanDescription(j.description),
       url,
       tags: tagList(j.tags),
       posted_at: validDate(j.date),
@@ -251,6 +340,7 @@ export function parseHimalayas(body: unknown): FoundListing[] {
       company: str(j.companyName, 250),
       location: locs.length ? locs.join(', ').slice(0, 250) : 'Remote',
       snippet: cleanSnippet(j.excerpt) ?? cleanSnippet(j.description),
+      description: cleanDescription(j.description) ?? cleanDescription(j.excerpt),
       url,
       tags: tagList(j.categories),
       posted_at: typeof j.pubDate === 'number' ? validDate(j.pubDate * 1000) : validDate(j.pubDate),
@@ -277,6 +367,7 @@ export function parseGreenhouse(board: string, label: string, body: unknown): Fo
       company: label,
       location: str((j.location as { name?: unknown } | undefined)?.name, 250),
       snippet: null,
+      description: null, // fetched when someone opens the job (see ListingRepo.ensureDescription)
       url,
       tags: [board],
       posted_at: validDate(j.updated_at),
@@ -301,6 +392,7 @@ export function parseLever(board: string, label: string, body: unknown): FoundLi
       company: label,
       location: str(cat.location, 250),
       snippet: cleanSnippet(j.descriptionPlain),
+      description: cleanDescription(j.descriptionPlain) ?? cleanDescription(j.description),
       url,
       tags: [str(cat.team, 40), str(cat.commitment, 40)].filter((t): t is string => Boolean(t)),
       posted_at: validDate(j.createdAt),
@@ -350,8 +442,13 @@ async function getJson(f: FetchFn, url: string): Promise<unknown> {
 export interface SourceConfig {
   googleKey?: string | undefined;
   googleCx?: string | undefined;
+  /** one or more search phrases separated by "|" */
   googleQuery?: string | undefined;
 }
+
+/** Phrases searched on the Bangladeshi job sites the search engine is limited to (one request each). */
+const DEFAULT_GOOGLE_QUERIES =
+  'jobs in Bangladesh|internship Bangladesh|software engineer Dhaka|accounts officer Dhaka|marketing executive Bangladesh|bank job circular Bangladesh|scholarship Bangladesh|NGO jobs Bangladesh';
 
 export function buildConnectors(cfg: SourceConfig = {}): Connector[] {
   const googleReady = Boolean(cfg.googleKey && cfg.googleCx);
@@ -441,11 +538,27 @@ export function buildConnectors(cfg: SourceConfig = {}): Connector[] {
       needs: 'GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX',
       enabled: googleReady,
       fetch: async (f) => {
-        const q = encodeURIComponent(cfg.googleQuery ?? 'jobs in Bangladesh');
-        const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(
-          cfg.googleKey ?? '',
-        )}&cx=${encodeURIComponent(cfg.googleCx ?? '')}&q=${q}&num=10`;
-        return parseGoogle(await getJson(f, url));
+        const queries = (cfg.googleQuery ?? DEFAULT_GOOGLE_QUERIES)
+          .split('|')
+          .map((x) => x.trim())
+          .filter(Boolean)
+          .slice(0, 10);
+        const pages = await Promise.allSettled(
+          queries.map(async (phrase) => {
+            const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(
+              cfg.googleKey ?? '',
+            )}&cx=${encodeURIComponent(cfg.googleCx ?? '')}&q=${encodeURIComponent(phrase)}&num=10`;
+            return parseGoogle(await getJson(f, url));
+          }),
+        );
+        const ok = pages.filter(
+          (p): p is PromiseFulfilledResult<FoundListing[]> => p.status === 'fulfilled',
+        );
+        if (ok.length === 0) throw new Error('No search answered');
+        const seen = new Set<string>();
+        return ok
+          .flatMap((p) => p.value)
+          .filter((l) => (seen.has(l.external_id) ? false : (seen.add(l.external_id), true)));
       },
     },
   ];

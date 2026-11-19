@@ -364,8 +364,12 @@ describe('sponsored posts, push notifications and the notification board', () =>
       message: 'Device is gone',
       audience: 'seekers',
     });
-    await new Promise((r) => setTimeout(r, 300));
-    await push().flush();
+    // the push goes out in the background after the broadcast; wait until the gone device has been forgotten
+    for (let i = 0; i < 50; i++) {
+      await push().flush();
+      if ((await b.req('GET', '/api/v1/me/push')).json().data.devices === 0) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
     failWith = null;
     expect((await b.req('GET', '/api/v1/me/push')).json().data.devices).toBe(0);
   });

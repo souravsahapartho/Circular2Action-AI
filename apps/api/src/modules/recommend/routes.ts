@@ -179,6 +179,7 @@ export function registerRecommend(
       .object({
         q: z.string().trim().max(120).optional(),
         source: z.enum(SOURCE_IDS).optional(),
+        category: z.enum(['jobs', 'internships', 'scholarships']).optional(),
         limit: z.coerce.number().int().min(1).max(50).default(20),
         offset: z.coerce.number().int().min(0).max(600).default(0),
       })
@@ -186,6 +187,7 @@ export function registerRecommend(
     const out = await service.webFeed(req.auth!.userId, {
       ...(q.q ? { q: q.q } : {}),
       ...(q.source ? { source: q.source } : {}),
+      ...(q.category ? { category: q.category } : {}),
       limit: q.limit,
       offset: q.offset,
     });
