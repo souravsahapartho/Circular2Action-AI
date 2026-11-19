@@ -347,6 +347,7 @@
     "closedNote": "সময় শেষ"
   },
   "tracker": {
+    "removeItem": "বাদ দিন",
     "add": "আবেদন যোগ করুন",
     "addManual": "নিজে যোগ করুন",
     "titleField": "পদ বা বৃত্তির নাম",
@@ -584,6 +585,7 @@
     "r_category_interest": "আপনি বেছেছেন: {value}",
     "r_category_activity": "আপনি {value} দেখেন তাই",
     "r_keyword": "“{value}” এর সাথে মিলেছে",
+    "r_keyword_general": "আপনার আগ্রহের সাথে মিলেছে",
     "r_location": "আপনার বাছাই করা জায়গায়",
     "r_eligible": "আপনি যোগ্য মনে হচ্ছে",
     "r_closing_soon": "শিগগিরই শেষ",

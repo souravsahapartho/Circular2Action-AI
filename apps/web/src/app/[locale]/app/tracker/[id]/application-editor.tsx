@@ -226,7 +226,7 @@ export function ApplicationEditor({
                   <button
                     className="btn ghost sm"
                     type="button"
-                    aria-label="Remove"
+                    aria-label={labels.removeItem}
                     onClick={async () => {
                       await callApi('DELETE', `/api/v1/me/applications/${a.id}/checklist/${c.id}`);
                       void reload();

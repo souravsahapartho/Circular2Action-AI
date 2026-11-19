@@ -47,7 +47,7 @@ export async function SponsoredStrip({
       <ul className="sponsored-list">
         {res.data.map((o) => {
           const chips = (o.reasons ?? [])
-            .map((r) => reasonText(d, r, categoryNames))
+            .map((r) => reasonText(d, r, categoryNames, locale))
             .filter((x): x is string => x !== null)
             .slice(0, 3);
           return (

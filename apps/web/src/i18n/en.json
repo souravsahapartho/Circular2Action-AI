@@ -347,6 +347,7 @@
     "closedNote": "Closed"
   },
   "tracker": {
+    "removeItem": "Remove item",
     "add": "Add application",
     "addManual": "Add one manually",
     "titleField": "Position or scholarship",
@@ -584,6 +585,7 @@
     "r_category_interest": "You chose {value}",
     "r_category_activity": "Because you look at {value}",
     "r_keyword": "Matches “{value}”",
+    "r_keyword_general": "Matches your interests",
     "r_location": "In a place you chose",
     "r_eligible": "You appear to be eligible",
     "r_closing_soon": "Closing soon",

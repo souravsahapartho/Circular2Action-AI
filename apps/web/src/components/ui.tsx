@@ -163,7 +163,7 @@ export function ErrorState({ dict }: { dict: Dictionary }) {
 
 export function Breadcrumbs({ items }: { items: Array<{ href?: string; label: string }> }) {
   return (
-    <nav className="crumbs" aria-label="Breadcrumb">
+    <nav className="crumbs" aria-label={items[0]?.label}>
       {items.map((it, i) => (
         <span key={i}>
           {i > 0 ? <span aria-hidden="true"> › </span> : null}
@@ -244,7 +244,7 @@ export function Pagination({
 }) {
   if (!prevHref && !nextHref) return null;
   return (
-    <nav className="pagination" aria-label="Pagination">
+    <nav className="pagination" aria-label={label}>
       {prevHref ? (
         <Link className="btn secondary sm" href={prevHref}>
           ← {dict.common.previous}

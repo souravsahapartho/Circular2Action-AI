@@ -196,7 +196,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       </section>
 
       <div className="container">
-        <section className="stat-band" aria-label="Statistics">
+        <section className="stat-band">
           <div>
             <strong className="tabular">{nf(total)}</strong>
             <span>{d.home2.statsOpen}</span>

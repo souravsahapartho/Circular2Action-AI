@@ -96,7 +96,7 @@ export function OpportunityList({
         }
         const o = entry.item;
         const chips = (reasons?.[o.id] ?? [])
-          .map((r) => reasonText(dict, r, categoryNames ?? {}))
+          .map((r) => reasonText(dict, r, categoryNames ?? {}, locale))
           .filter((x): x is string => x !== null);
         return (
           <li key={o.id} className="opp" data-cat={o.category_slug ?? undefined}>

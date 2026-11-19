@@ -48,7 +48,7 @@ export function WebJobCard({
   categoryNames?: Record<string, string>;
 }) {
   const chips = (reasons ?? [])
-    .map((r) => reasonText(d, r, categoryNames ?? {}))
+    .map((r) => reasonText(d, r, categoryNames ?? {}, locale))
     .filter((x): x is string => x !== null);
   const href = safeHref(job.url);
   const source = SOURCE_LABEL[job.source] ?? job.source;
