@@ -62,6 +62,9 @@ export const envSchema = z
     GOOGLE_CSE_API_KEY: z.string().min(10).optional(),
     GOOGLE_CSE_CX: z.string().min(3).optional(),
     GOOGLE_CSE_QUERY: z.string().min(3).max(200).optional(),
+    VAPID_PUBLIC_KEY: z.string().min(40).max(200).optional(),
+    VAPID_PRIVATE_KEY: z.string().min(20).max(200).optional(),
+    VAPID_SUBJECT: z.string().min(8).max(200).optional(),
   })
   .superRefine((env, ctx) => {
     // SCH-02: no keep-alive. A free instance must really sleep between ticks.

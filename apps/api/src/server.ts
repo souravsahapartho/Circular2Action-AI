@@ -6,6 +6,8 @@ import { LogMailer } from './modules/email/mailer';
 import { AdminRepo } from './modules/admin/repo';
 import { AdminInsights } from './modules/admin/insights';
 import { EmployerRepo } from './modules/employer/repo';
+import { PushService } from './modules/push/service';
+import { SponsoredRepo } from './modules/sponsored/repo';
 import { ApplicationRepo } from './modules/applications/repo';
 import { ListingRepo } from './modules/listings/repo';
 import { buildConnectors } from './modules/listings/sources';
@@ -27,6 +29,13 @@ async function main(): Promise<void> {
   const adminRepo = db ? new AdminRepo(db) : null;
   const meRepo = db ? new MeRepo(db) : null;
   const oppRepo = db ? new OpportunityRepo(db) : null;
+  const push = db
+    ? new PushService(db, systemClock, {
+        publicKey: config.VAPID_PUBLIC_KEY,
+        privateKey: config.VAPID_PRIVATE_KEY,
+        subject: config.VAPID_SUBJECT,
+      })
+    : null;
   const app = buildApp({
     config,
     readiness: [databaseCheck(db)],
@@ -37,6 +46,8 @@ async function main(): Promise<void> {
           recommend: { service: new RecommendService(db, meRepo!, oppRepo!, systemClock) },
           admin: { repo: adminRepo! },
           employer: { repo: new EmployerRepo(db, adminRepo!, systemClock) },
+          push: { service: push! },
+          sponsored: { repo: new SponsoredRepo(db, systemClock) },
           applications: { repo: new ApplicationRepo(db) },
           adminInsights: { insights: new AdminInsights(db, systemClock) },
           listings: {
@@ -69,6 +80,12 @@ async function main(): Promise<void> {
   };
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   process.on('SIGINT', () => void shutdown('SIGINT'));
+
+  // Send pending push notifications shortly after they are created. The timer only runs while the service is awake.
+  if (push?.enabled) {
+    const timer = setInterval(() => void push.flush().catch(() => undefined), 20_000);
+    timer.unref();
+  }
 
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   app.log.info({ tier: config.HOSTING_TIER, env: config.APP_ENV }, 'api started');

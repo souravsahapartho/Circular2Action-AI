@@ -37,6 +37,8 @@ export function registerAdminInsights(
     applications: ApplicationRepo;
     now: () => Date;
     guard: GuardOptions;
+    /** Called after people were notified, so a push can go out at once. */
+    afterNotify?: () => void;
   },
 ): void {
   const { insights, applications, guard, now } = deps;
@@ -163,14 +165,16 @@ export function registerAdminInsights(
         .object({
           title: z.string().trim().min(3).max(120),
           message: z.string().trim().min(3).max(500),
-          audience: z.enum(['all', 'category']),
+          audience: z.enum(['all', 'seekers', 'employers', 'category', 'user']),
+          email: z.string().trim().toLowerCase().email().max(254).optional(),
           category_slug: z
             .string()
             .regex(/^[a-z0-9-]{1,100}$/)
             .optional(),
         })
         .strict()
-        .refine((v) => v.audience === 'all' || Boolean(v.category_slug), 'Choose a category')
+        .refine((v) => v.audience !== 'category' || Boolean(v.category_slug), 'Choose a category')
+        .refine((v) => v.audience !== 'user' || Boolean(v.email), 'Enter the email address')
         .parse(readJson(req));
       const told = await insights.broadcast(
         {
@@ -178,11 +182,20 @@ export function registerAdminInsights(
           message: b.message,
           audience: b.audience,
           ...(b.category_slug ? { categorySlug: b.category_slug } : {}),
+          ...(b.email ? { email: b.email } : {}),
         },
         actorOf(req),
         req.id,
       );
+      deps.afterNotify?.();
       return { data: { told } };
     },
+  });
+
+  route(app, guard, {
+    method: 'GET',
+    url: '/api/v1/admin/notifications/history',
+    access: 'system.operate',
+    handler: async () => ({ data: await insights.broadcastHistory(30) }),
   });
 }

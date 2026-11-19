@@ -261,7 +261,8 @@ export class RecommendService {
 
   // ---- candidates ----
 
-  private async candidates(now: Date, limit = 300): Promise<OppRow[]> {
+  private async candidates(now: Date, limit = 300, onlyIds?: string[]): Promise<OppRow[]> {
+    if (onlyIds && onlyIds.length === 0) return [];
     return this.db.query<OppRow>(
       `SELECT o.id, o.slug, o.title, o.title_alt, o.summary_en, o.summary_bn, o.deadline_at, o.published_at,
               c.slug AS cat,
@@ -270,8 +271,9 @@ export class RecommendService {
        FROM opportunities o JOIN opportunity_categories c ON c.id = o.category_id
        WHERE o.publication_status = 'published' AND o.lifecycle_status = 'open'
          AND (o.deadline_at IS NULL OR o.deadline_at > :now)
+         ${onlyIds ? 'AND o.id IN (:ids)' : ''}
        ORDER BY COALESCE(o.deadline_at, '9999-12-31'), o.id LIMIT :limit`,
-      { now, limit },
+      { now, limit, ...(onlyIds ? { ids: onlyIds } : {}) },
     );
   }
 
@@ -325,12 +327,16 @@ export class RecommendService {
     return new Set(rows.map((r) => String(r.id)));
   }
 
-  private async scoredFor(userId: string, now: Date, opts: { exclude: boolean; limit?: number }) {
+  private async scoredFor(
+    userId: string,
+    now: Date,
+    opts: { exclude: boolean; limit?: number; ids?: string[] },
+  ) {
     const [prefs, events, profile, cands] = await Promise.all([
       this.getPreferences(userId),
       this.events(userId, now),
       this.me.eligibilityProfile(userId),
-      this.candidates(now, opts.limit ?? 300),
+      this.candidates(now, opts.limit ?? 300, opts.ids),
     ]);
     const affinity: Affinity | null = prefs.personalize ? buildAffinity(events, now) : null;
     const excluded = opts.exclude ? await this.excludedIds(userId) : new Set<string>();
@@ -353,6 +359,16 @@ export class RecommendService {
       };
     });
     return { prefs, affinity, events, ranked: rank(candidates, prefs, affinity, now) };
+  }
+
+  /** How well each of these opportunities fits this person (used to pick which sponsored posts to show). */
+  async scoreIds(userId: string, ids: string[]) {
+    const { ranked } = await this.scoredFor(userId, this.clock.now(), {
+      exclude: false,
+      limit: Math.max(1, ids.length),
+      ids,
+    });
+    return ranked;
   }
 
   /** "For you": opportunities ranked for this person, plus web jobs that match their interests. */
@@ -661,11 +677,11 @@ export class RecommendService {
       }
     >(
       `SELECT id, source, title, company, location, snippet, url, tags, posted_at FROM external_listings
-       WHERE ${where.join(' AND ')} ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT 600`,
+       WHERE ${where.join(' AND ')} ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT 1500`,
       params,
     );
     const interestWords = prefs.categories.flatMap((c) => tokenize(c.replace(/-/g, ' ')));
-    return rows
+    const scored = rows
       .map((r) => {
         const tags = json<string[]>(r.tags, []);
         const sc = scoreWebJob(
@@ -698,6 +714,7 @@ export class RecommendService {
         };
       })
       .sort((x, y) => y.score - x.score || (y.posted_at ?? '').localeCompare(x.posted_at ?? ''));
+    return diversify(scored);
   }
 
   /** The whole web jobs list ordered by relevance to this person (used by the web jobs page). */
@@ -798,4 +815,29 @@ export class RecommendService {
       now,
     );
   }
+}
+
+/**
+ * Keeps the order by relevance but stops one company or one source from filling a whole screen: when the next item
+ * repeats a company seen in the last two picks (or a source seen in the last three), a close candidate that does not
+ * repeat is taken first. Pure and stable; nothing is dropped.
+ */
+export function diversify<T extends { company: string | null; source: string }>(
+  list: T[],
+  window = 8,
+): T[] {
+  const rest = [...list];
+  const out: T[] = [];
+  const co = (x: T) => (x.company ?? '').toLowerCase();
+  while (rest.length) {
+    const recentCompanies = out.slice(-2).map(co);
+    const recentSources = out.slice(-3).map((x) => x.source);
+    const near = rest.slice(0, window);
+    const newCompany = (x: T) => !co(x) || !recentCompanies.includes(co(x));
+    let pick = near.findIndex((x) => newCompany(x) && !recentSources.includes(x.source));
+    if (pick < 0) pick = near.findIndex(newCompany);
+    if (pick < 0) pick = 0;
+    out.push(rest.splice(pick, 1)[0]!);
+  }
+  return out;
 }

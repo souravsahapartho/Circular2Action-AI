@@ -20,6 +20,11 @@ export interface WebJob {
 export const SOURCE_LABEL: Record<string, string> = {
   arbeitnow: 'Arbeitnow',
   remotive: 'Remotive',
+  jobicy: 'Jobicy',
+  remoteok: 'Remote OK',
+  himalayas: 'Himalayas',
+  greenhouse: 'Company career page',
+  lever: 'Company career page',
   google: 'Google Search',
 };
 

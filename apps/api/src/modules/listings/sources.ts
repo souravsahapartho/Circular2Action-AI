@@ -13,10 +13,29 @@ export interface FoundListing {
   posted_at: Date | null;
 }
 
+export const SOURCE_IDS = [
+  'arbeitnow',
+  'remotive',
+  'jobicy',
+  'remoteok',
+  'himalayas',
+  'greenhouse',
+  'lever',
+  'google',
+] as const;
+
 export type FetchFn = (url: string, init?: { signal?: AbortSignal }) => Promise<Response>;
 
 export interface Connector {
-  id: 'arbeitnow' | 'remotive' | 'google';
+  id:
+    | 'arbeitnow'
+    | 'remotive'
+    | 'jobicy'
+    | 'remoteok'
+    | 'himalayas'
+    | 'greenhouse'
+    | 'lever'
+    | 'google';
   label: string;
   homepage: string;
   /** What the owner must provide before it runs, or null when it needs nothing. */
@@ -166,6 +185,160 @@ export function parseGoogle(body: unknown): FoundListing[] {
   return out;
 }
 
+const validDate = (v: unknown): Date | null => {
+  const d = typeof v === 'string' || typeof v === 'number' ? new Date(v) : null;
+  return d && !Number.isNaN(d.getTime()) ? d : null;
+};
+
+export function parseJobicy(body: unknown): FoundListing[] {
+  const jobs = (body as { jobs?: unknown })?.jobs;
+  if (!Array.isArray(jobs)) return [];
+  const out: FoundListing[] = [];
+  for (const j of jobs as Array<Record<string, unknown>>) {
+    const url = httpUrlOrNull(j.url);
+    const title = str(j.jobTitle, 400);
+    const id = j.id !== undefined && j.id !== null ? String(j.id).slice(0, 190) : null;
+    if (!url || !title || !id) continue;
+    out.push({
+      external_id: id,
+      title,
+      company: str(j.companyName, 250),
+      location: str(j.jobGeo, 250) ?? 'Remote',
+      snippet: cleanSnippet(j.jobExcerpt),
+      url,
+      tags: [...tagList(j.jobIndustry), ...tagList(j.jobType)].slice(0, 8),
+      posted_at: validDate(j.pubDate),
+    });
+  }
+  return out;
+}
+
+export function parseRemoteOk(body: unknown): FoundListing[] {
+  if (!Array.isArray(body)) return [];
+  const out: FoundListing[] = [];
+  for (const j of body as Array<Record<string, unknown>>) {
+    const url = httpUrlOrNull(j.url);
+    const title = str(j.position, 400);
+    const id = j.id !== undefined && j.id !== null ? String(j.id).slice(0, 190) : null;
+    if (!url || !title || !id) continue; // the first element is a legal notice and has no position
+    out.push({
+      external_id: id,
+      title,
+      company: str(j.company, 250),
+      location: str(j.location, 250) ?? 'Remote',
+      snippet: cleanSnippet(j.description),
+      url,
+      tags: tagList(j.tags),
+      posted_at: validDate(j.date),
+    });
+  }
+  return out.slice(0, 80);
+}
+
+export function parseHimalayas(body: unknown): FoundListing[] {
+  const jobs = (body as { jobs?: unknown })?.jobs;
+  if (!Array.isArray(jobs)) return [];
+  const out: FoundListing[] = [];
+  for (const j of jobs as Array<Record<string, unknown>>) {
+    const url = httpUrlOrNull(j.applicationLink) ?? httpUrlOrNull(j.guid);
+    const title = str(j.title, 400);
+    const id = str(j.guid, 190) ?? url;
+    if (!url || !title || !id) continue;
+    const locs = tagList(j.locationRestrictions);
+    out.push({
+      external_id: id.slice(0, 190),
+      title,
+      company: str(j.companyName, 250),
+      location: locs.length ? locs.join(', ').slice(0, 250) : 'Remote',
+      snippet: cleanSnippet(j.excerpt) ?? cleanSnippet(j.description),
+      url,
+      tags: tagList(j.categories),
+      posted_at: typeof j.pubDate === 'number' ? validDate(j.pubDate * 1000) : validDate(j.pubDate),
+    });
+  }
+  return out;
+}
+
+const newest = (a: FoundListing, b: FoundListing) =>
+  (b.posted_at?.getTime() ?? 0) - (a.posted_at?.getTime() ?? 0);
+
+/** Public Greenhouse job board of one company (documented, unauthenticated). */
+export function parseGreenhouse(board: string, label: string, body: unknown): FoundListing[] {
+  const jobs = (body as { jobs?: unknown })?.jobs;
+  if (!Array.isArray(jobs)) return [];
+  const out: FoundListing[] = [];
+  for (const j of jobs as Array<Record<string, unknown>>) {
+    const url = httpUrlOrNull(j.absolute_url);
+    const title = str(j.title, 400);
+    if (!url || !title || j.id === undefined) continue;
+    out.push({
+      external_id: `${board}-${String(j.id)}`.slice(0, 190),
+      title,
+      company: label,
+      location: str((j.location as { name?: unknown } | undefined)?.name, 250),
+      snippet: null,
+      url,
+      tags: [board],
+      posted_at: validDate(j.updated_at),
+    });
+  }
+  return out.sort(newest).slice(0, 25);
+}
+
+/** Public Lever postings of one company (documented, unauthenticated). */
+export function parseLever(board: string, label: string, body: unknown): FoundListing[] {
+  if (!Array.isArray(body)) return [];
+  const out: FoundListing[] = [];
+  for (const j of body as Array<Record<string, unknown>>) {
+    const url = httpUrlOrNull(j.hostedUrl);
+    const title = str(j.text, 400);
+    const id = str(j.id, 100);
+    if (!url || !title || !id) continue;
+    const cat = (j.categories ?? {}) as Record<string, unknown>;
+    out.push({
+      external_id: `${board}-${id}`.slice(0, 190),
+      title,
+      company: label,
+      location: str(cat.location, 250),
+      snippet: cleanSnippet(j.descriptionPlain),
+      url,
+      tags: [str(cat.team, 40), str(cat.commitment, 40)].filter((t): t is string => Boolean(t)),
+      posted_at: validDate(j.createdAt),
+    });
+  }
+  return out.sort(newest).slice(0, 25);
+}
+
+/** Companies whose public boards are read. Fixed list: no user-supplied hosts, so no SSRF. */
+export const GREENHOUSE_BOARDS: Array<[string, string]> = [
+  ['gitlab', 'GitLab'],
+  ['stripe', 'Stripe'],
+  ['datadog', 'Datadog'],
+  ['cloudflare', 'Cloudflare'],
+  ['twilio', 'Twilio'],
+  ['coursera', 'Coursera'],
+  ['duolingo', 'Duolingo'],
+  ['figma', 'Figma'],
+  ['dropbox', 'Dropbox'],
+  ['mongodb', 'MongoDB'],
+  ['elastic', 'Elastic'],
+];
+export const LEVER_BOARDS: Array<[string, string]> = [
+  ['spotify', 'Spotify'],
+  ['palantir', 'Palantir'],
+  ['kraken', 'Kraken'],
+];
+
+/** Runs every board; one failing board does not fail the others, but all failing does. */
+async function settled(tasks: Array<Promise<FoundListing[]>>): Promise<FoundListing[]> {
+  const res = await Promise.allSettled(tasks);
+  const ok = res.filter(
+    (r): r is PromiseFulfilledResult<FoundListing[]> => r.status === 'fulfilled',
+  );
+  if (ok.length === 0) throw new Error('No board answered');
+  return ok.flatMap((r) => r.value);
+}
+
 async function getJson(f: FetchFn, url: string): Promise<unknown> {
   const res = await f(url, { signal: AbortSignal.timeout(15_000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -200,6 +373,66 @@ export function buildConnectors(cfg: SourceConfig = {}): Connector[] {
       enabled: true,
       fetch: async (f) =>
         parseRemotive(await getJson(f, 'https://remotive.com/api/remote-jobs?limit=60')),
+    },
+    {
+      id: 'jobicy',
+      label: 'Jobicy',
+      homepage: 'https://jobicy.com',
+      needs: null,
+      enabled: true,
+      fetch: async (f) =>
+        parseJobicy(await getJson(f, 'https://jobicy.com/api/v2/remote-jobs?count=50')),
+    },
+    {
+      id: 'remoteok',
+      label: 'Remote OK',
+      homepage: 'https://remoteok.com',
+      needs: null,
+      enabled: true,
+      fetch: async (f) => parseRemoteOk(await getJson(f, 'https://remoteok.com/api')),
+    },
+    {
+      id: 'himalayas',
+      label: 'Himalayas',
+      homepage: 'https://himalayas.app',
+      needs: null,
+      enabled: true,
+      fetch: async (f) =>
+        parseHimalayas(await getJson(f, 'https://himalayas.app/jobs/api?limit=50')),
+    },
+    {
+      id: 'greenhouse',
+      label: 'Company career pages (Greenhouse)',
+      homepage: 'https://www.greenhouse.com',
+      needs: null,
+      enabled: true,
+      fetch: (f) =>
+        settled(
+          GREENHOUSE_BOARDS.map(async ([b, label]) =>
+            parseGreenhouse(
+              b,
+              label,
+              await getJson(f, `https://boards-api.greenhouse.io/v1/boards/${b}/jobs`),
+            ),
+          ),
+        ),
+    },
+    {
+      id: 'lever',
+      label: 'Company career pages (Lever)',
+      homepage: 'https://www.lever.co',
+      needs: null,
+      enabled: true,
+      fetch: (f) =>
+        settled(
+          LEVER_BOARDS.map(async ([b, label]) =>
+            parseLever(
+              b,
+              label,
+              await getJson(f, `https://api.lever.co/v0/postings/${b}?mode=json`),
+            ),
+          ),
+        ),
     },
     {
       id: 'google',

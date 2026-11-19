@@ -4,8 +4,9 @@ import { AppError } from '../../platform/errors';
 import { bigintId, readJson } from '../../platform/http';
 import { route, type GuardOptions } from '../auth/guard';
 import type { ListingRepo } from './repo';
+import { SOURCE_IDS } from './sources';
 
-const SOURCES = ['arbeitnow', 'remotive', 'google'] as const;
+const SOURCES = SOURCE_IDS;
 
 const listQuery = z.object({
   q: z.string().trim().max(120).optional(),

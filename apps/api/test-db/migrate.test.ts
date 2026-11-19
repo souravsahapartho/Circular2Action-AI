@@ -22,6 +22,7 @@ describe('migration runner on TiDB (T-10 equivalent with plain SQL)', () => {
       '0003_portal',
       '0004_interests',
       '0005_employers',
+      '0006_sponsored_push',
     ]);
     const [tables] = await t.db.query<{ n: number } & import('../src/db/pool').Row>(
       `SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'`,
@@ -39,7 +40,7 @@ describe('migration runner on TiDB (T-10 equivalent with plain SQL)', () => {
       foreignKeys: Number(fks!.n),
       ms,
     });
-    expect(Number(tables!.n)).toBe(81); // 72 plan tables + mfa_recovery_codes + 4 portal + 2 interest tables + schema_migrations
+    expect(Number(tables!.n)).toBe(83); // 72 plan tables + mfa_recovery_codes + 4 portal + 2 interest tables + 2 sponsored/push tables + schema_migrations
     expect(Number(views!.n)).toBe(1);
   });
 

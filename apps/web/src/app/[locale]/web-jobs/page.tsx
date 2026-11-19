@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Jobs from the web' };
 
 const PAGE = 20;
-const SOURCES = ['arbeitnow', 'remotive', 'google'];
+const SOURCE_RE = /^[a-z]{3,20}$/;
 
 export default async function WebJobs({
   params,
@@ -28,7 +28,7 @@ export default async function WebJobs({
   const d = getDictionary(locale);
   const me = await getMe();
   const q = (sp.q ?? '').trim().slice(0, 120);
-  const source = SOURCES.includes(sp.source ?? '') ? sp.source : undefined;
+  const source = SOURCE_RE.test(sp.source ?? '') ? sp.source : undefined;
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   // signed-in people see the jobs that fit their interests first, unless they ask for newest
   const relevant = me !== null && sp.sort !== 'new';

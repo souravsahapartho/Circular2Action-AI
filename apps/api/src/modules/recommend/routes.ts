@@ -6,6 +6,7 @@ import { LIMITS, RateLimiter } from '../../platform/rate-limit';
 import type { Clock } from '../../platform/clock';
 import { route, type GuardOptions } from '../auth/guard';
 import type { RecommendService } from './service';
+import { SOURCE_IDS } from '../listings/sources';
 
 const slug = z
   .string()
@@ -177,7 +178,7 @@ export function registerRecommend(
     const q = z
       .object({
         q: z.string().trim().max(120).optional(),
-        source: z.enum(['arbeitnow', 'remotive', 'google']).optional(),
+        source: z.enum(SOURCE_IDS).optional(),
         limit: z.coerce.number().int().min(1).max(50).default(20),
         offset: z.coerce.number().int().min(0).max(600).default(0),
       })

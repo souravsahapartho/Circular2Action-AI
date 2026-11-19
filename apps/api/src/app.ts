@@ -13,6 +13,10 @@ import type { AdminRepo } from './modules/admin/repo';
 import type { AdminInsights } from './modules/admin/insights';
 import type { EmployerRepo } from './modules/employer/repo';
 import { registerEmployer } from './modules/employer/routes';
+import type { PushService } from './modules/push/service';
+import { registerPush } from './modules/push/routes';
+import type { SponsoredRepo } from './modules/sponsored/repo';
+import { registerSponsored } from './modules/sponsored/routes';
 import { registerAdminInsights } from './modules/admin/insights-routes';
 import type { ApplicationRepo } from './modules/applications/repo';
 import { registerApplications } from './modules/applications/routes';
@@ -50,6 +54,8 @@ export interface AppDeps {
   recommend?: { service: RecommendService };
   adminInsights?: { insights: AdminInsights };
   employer?: { repo: EmployerRepo };
+  push?: { service: PushService };
+  sponsored?: { repo: SponsoredRepo };
 }
 
 /** Build the Fastify app. Routes are added per module; this is the platform skeleton (Phase 0). */
@@ -192,6 +198,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       applications: deps.applications.repo,
       now: () => clock.now(),
       guard,
+      ...(deps.push
+        ? { afterNotify: () => void deps.push!.service.flush().catch(() => undefined) }
+        : {}),
     });
   }
 
@@ -204,6 +213,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     });
   }
 
+  if (deps.push) {
+    registerPush(app, {
+      push: deps.push.service,
+      clock,
+      guard,
+      locale: (id) => deps.push!.service.localeOf(id),
+    });
+  }
+  if (deps.sponsored && deps.opportunities) {
+    registerSponsored(app, {
+      repo: deps.sponsored.repo,
+      opportunities: deps.opportunities.repo,
+      ...(deps.recommend ? { recommend: deps.recommend.service } : {}),
+      clock,
+      guard,
+    });
+  }
   if (deps.listings) registerListings(app, { repo: deps.listings.repo, guard });
   if (deps.recommend) registerRecommend(app, { service: deps.recommend.service, clock, guard });
 

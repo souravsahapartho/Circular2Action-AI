@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { Db, Row } from '../../db/pool';
 import type { Clock } from '../../platform/clock';
+import { normalizeEmail } from '../auth/crypto';
 
 const day = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -235,7 +236,13 @@ export class AdminInsights {
    * (they chose it, or looked at it in the last 90 days). Returns how many people were told.
    */
   async broadcast(
-    input: { title: string; message: string; audience: 'all' | 'category'; categorySlug?: string },
+    input: {
+      title: string;
+      message: string;
+      audience: 'all' | 'seekers' | 'employers' | 'category' | 'user';
+      categorySlug?: string;
+      email?: string;
+    },
     actor: { id: string; role: string },
     requestId?: string,
   ): Promise<number> {
@@ -249,6 +256,22 @@ export class AdminInsights {
             OR u.id IN (SELECT user_id FROM interaction_events WHERE category_slug = :c AND created_at > :since)
           ) LIMIT 20000`,
         { c: input.categorySlug, since },
+      );
+      ids = rows.map((r) => String(r.id));
+    } else if (input.audience === 'user' && input.email) {
+      const rows = await this.db.query<Row & { id: string }>(
+        "SELECT id FROM users WHERE status = 'active' AND email_normalized = :e LIMIT 1",
+        { e: normalizeEmail(input.email) },
+      );
+      ids = rows.map((r) => String(r.id));
+    } else if (input.audience === 'employers') {
+      const rows = await this.db.query<Row & { id: string }>(
+        "SELECT u.id FROM users u WHERE u.status = 'active' AND EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role = 'employer') LIMIT 20000",
+      );
+      ids = rows.map((r) => String(r.id));
+    } else if (input.audience === 'seekers') {
+      const rows = await this.db.query<Row & { id: string }>(
+        "SELECT u.id FROM users u WHERE u.status = 'active' AND NOT EXISTS (SELECT 1 FROM user_roles r WHERE r.user_id = u.id AND r.role <> 'user') LIMIT 20000",
       );
       ids = rows.map((r) => String(r.id));
     } else {
@@ -289,6 +312,7 @@ export class AdminInsights {
         meta: JSON.stringify({
           audience: input.audience,
           category: input.categorySlug ?? null,
+          message: input.message.slice(0, 200),
           told: ids.length,
           title: input.title,
         }),
@@ -296,5 +320,42 @@ export class AdminInsights {
       },
     );
     return ids.length;
+  }
+
+  /** The latest announcements staff sent, newest first, for the notification board. */
+  async broadcastHistory(limit = 30): Promise<
+    Array<{
+      id: string;
+      at: string;
+      audience: string;
+      category: string | null;
+      title: string;
+      message: string;
+      told: number;
+    }>
+  > {
+    const n = Math.max(1, Math.min(100, Math.floor(limit)));
+    const rows = await this.db.query<Row & { id: string; created_at: Date; metadata: unknown }>(
+      `SELECT id, created_at, metadata FROM audit_logs WHERE action = 'notification.broadcast'
+       ORDER BY created_at DESC LIMIT ${n}`,
+    );
+    return rows.map((r) => {
+      const m = (typeof r.metadata === 'string' ? JSON.parse(r.metadata) : (r.metadata ?? {})) as {
+        audience?: string;
+        category?: string | null;
+        title?: string;
+        message?: string;
+        told?: number;
+      };
+      return {
+        id: String(r.id),
+        at: r.created_at.toISOString(),
+        audience: m.audience ?? 'all',
+        category: m.category ?? null,
+        title: m.title ?? '',
+        message: m.message ?? '',
+        told: Number(m.told ?? 0),
+      };
+    });
   }
 }

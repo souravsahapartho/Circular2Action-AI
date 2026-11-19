@@ -17,9 +17,7 @@ export default async function AdminListings({
   const me = await requireStaff();
   const sp = await searchParams;
   const q = (sp.q ?? '').trim().slice(0, 120);
-  const source = ['arbeitnow', 'remotive', 'google'].includes(sp.source ?? '')
-    ? sp.source
-    : undefined;
+  const source = /^[a-z]{3,20}$/.test(sp.source ?? '') ? sp.source : undefined;
   const page = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const qs = new URLSearchParams({ limit: String(PAGE), offset: String((page - 1) * PAGE) });
   if (q) qs.set('q', q);

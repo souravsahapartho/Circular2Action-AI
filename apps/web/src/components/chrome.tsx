@@ -265,9 +265,6 @@ function Footer({ locale, dict }: { locale: Locale; dict: Dictionary }) {
               <li>
                 <Link href={`/${locale}/help`}>{dict.footer.help}</Link>
               </li>
-              <li>
-                <a href="/admin">{dict.footer.staff}</a>
-              </li>
             </ul>
           </div>
         </div>
