@@ -2,6 +2,7 @@ import type { Db, Row } from '../../db/pool';
 import type { Clock } from '../../platform/clock';
 import {
   classifyListing,
+  priorityOf,
   regionOf,
   cleanDescription,
   GREENHOUSE_BOARDS,
@@ -21,6 +22,7 @@ export interface ListingRow {
   tags: string[];
   category_slug: string;
   region: string;
+  priority: number;
   posted_at: string | null;
   fetched_at: string;
   hidden: boolean;
@@ -37,6 +39,7 @@ interface DbListing extends Row {
   tags: unknown;
   category_slug: string;
   region: string;
+  priority: number;
   posted_at: Date | null;
   fetched_at: Date;
   hidden: number;
@@ -53,13 +56,14 @@ const toRow = (r: DbListing): ListingRow => ({
   tags: (typeof r.tags === 'string' ? JSON.parse(r.tags) : r.tags) ?? [],
   category_slug: r.category_slug,
   region: r.region,
+  priority: Number(r.priority ?? 0),
   posted_at: r.posted_at ? r.posted_at.toISOString() : null,
   fetched_at: r.fetched_at.toISOString(),
   hidden: Number(r.hidden) === 1,
 });
 
 const COLUMNS =
-  'id, source, title, company, location, snippet, url, tags, category_slug, region, posted_at, fetched_at, hidden';
+  'id, source, title, company, location, snippet, url, tags, category_slug, region, priority, posted_at, fetched_at, hidden';
 const STALE_MS = 6 * 60 * 60 * 1000;
 /** Bangladeshi listings come first: about three in four. The rest are foreign ones. */
 export const BD_SHARE = 0.75;
@@ -134,17 +138,19 @@ export class ListingRepo {
             l.description ?? null,
             classifyListing(l.title, l.tags),
             regionOf(source, l.url, l.location),
+            priorityOf(l.company, l.location),
           );
-          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+          return '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
         })
         .join(', ');
       await this.db.execute(
-        `INSERT INTO external_listings (source, external_id, title, company, location, snippet, url, tags, posted_at, fetched_at, description, category_slug, region)
+        `INSERT INTO external_listings (source, external_id, title, company, location, snippet, url, tags, posted_at, fetched_at, description, category_slug, region, priority)
          VALUES ${marks}
          ON DUPLICATE KEY UPDATE title = VALUES(title), company = VALUES(company), location = VALUES(location),
            snippet = VALUES(snippet), url = VALUES(url), tags = VALUES(tags), posted_at = VALUES(posted_at),
            fetched_at = VALUES(fetched_at), description = COALESCE(VALUES(description), description),
-           category_slug = VALUES(category_slug), region = VALUES(region)`,
+           category_slug = VALUES(category_slug), region = VALUES(region),
+           priority = VALUES(priority)`,
         values,
       );
     }
@@ -232,10 +238,10 @@ export class ListingRepo {
       params.like = `%${q.q.toLowerCase().replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
     }
     const w = where.join(' AND ');
-    const page = (extra: string, limit: number, offset: number) =>
+    const page = (extra: string, limit: number, offset: number, byPriority = false) =>
       this.db.query<DbListing>(
         `SELECT ${COLUMNS} FROM external_listings WHERE ${w}${extra}
-         ORDER BY COALESCE(posted_at, fetched_at) DESC, id DESC LIMIT ${Math.max(0, Math.floor(limit))} OFFSET ${Math.max(0, Math.floor(offset))}`,
+         ORDER BY ${byPriority ? 'priority DESC, ' : ''}COALESCE(posted_at, fetched_at) DESC, id DESC LIMIT ${Math.max(0, Math.floor(limit))} OFFSET ${Math.max(0, Math.floor(offset))}`,
         params,
       );
     let rows: DbListing[];
@@ -247,7 +253,8 @@ export class ListingRepo {
       const offBd = Math.floor(q.offset * BD_SHARE);
       const bd = await page(" AND region = 'bd'", nBd, offBd);
       const wantIntl = q.limit - bd.length;
-      const intl = await page(" AND region <> 'bd'", wantIntl, q.offset - offBd);
+      // foreign ones: United States, Canada, Australia, work open to anyone and large companies first
+      const intl = await page(" AND region <> 'bd'", wantIntl, q.offset - offBd, true);
       rows = mixRegions(bd, intl, BD_PATTERN).slice(0, q.limit);
     }
     const [c] = await this.db.query<Row & { n: number }>(

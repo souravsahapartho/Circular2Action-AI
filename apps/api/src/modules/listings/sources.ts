@@ -158,6 +158,96 @@ export function regionOf(source: string, url: string, location: string | null): 
   return location && BD_PLACES.test(location) ? 'bd' : 'intl';
 }
 
+/**
+ * How much a foreign listing is worth showing first: points for the countries most people here look at (United
+ * States, Canada, Australia), for work open to anyone ("worldwide", "anywhere"), and for well-known large companies.
+ * Stored with the listing so lists can be ordered in the database. 0 to 5.
+ */
+const PREFERRED_PLACES =
+  /\b(united states|usa|u\.s\.a?\.?|us only|canada|australia|new york|san francisco|seattle|austin|boston|chicago|los angeles|toronto|vancouver|sydney|melbourne|brisbane|california|texas|washington|ontario|british columbia)\b/i;
+const OPEN_TO_ALL = /\b(worldwide|anywhere|global|asia|apac|remote)\b/i;
+const BIG_COMPANIES = new Set(
+  [
+    'google',
+    'microsoft',
+    'amazon',
+    'apple',
+    'meta',
+    'netflix',
+    'stripe',
+    'gitlab',
+    'datadog',
+    'cloudflare',
+    'twilio',
+    'coursera',
+    'duolingo',
+    'figma',
+    'dropbox',
+    'mongodb',
+    'elastic',
+    'anthropic',
+    'databricks',
+    'coinbase',
+    'robinhood',
+    'pinterest',
+    'lyft',
+    'asana',
+    'okta',
+    'instacart',
+    'vercel',
+    'zscaler',
+    'airtable',
+    'block',
+    'carta',
+    'toast',
+    'affirm',
+    'chime',
+    'brex',
+    'scale ai',
+    'spotify',
+    'palantir',
+    'kraken',
+    'canva',
+    'atlassian',
+    'shopify',
+    'salesforce',
+    'oracle',
+    'ibm',
+    'intel',
+    'nvidia',
+    'adobe',
+    'uber',
+    'airbnb',
+    'paypal',
+    'samsung',
+    'deloitte',
+    'pwc',
+    'kpmg',
+    'ey',
+    'accenture',
+    'mckinsey',
+    'unilever',
+    'nestle',
+    'siemens',
+    'sap',
+    'bosch',
+    'booking.com',
+  ].map((x) => x.toLowerCase()),
+);
+
+export function priorityOf(company: string | null, location: string | null): number {
+  let p = 0;
+  if (location && PREFERRED_PLACES.test(location)) p += 2;
+  else if (location && OPEN_TO_ALL.test(location)) p += 1;
+  const c = (company ?? '').trim().toLowerCase();
+  if (
+    c &&
+    (BIG_COMPANIES.has(c) || [...BIG_COMPANIES].some((b) => b.length > 3 && c.startsWith(b + ' ')))
+  )
+    p += 3;
+  return Math.min(5, p);
+}
+
 /** The kind a found listing belongs to, so it can sit in the matching list on the site. */
 export type ListingKind = 'jobs' | 'internships' | 'scholarships';
 
@@ -414,6 +504,25 @@ export const GREENHOUSE_BOARDS: Array<[string, string]> = [
   ['dropbox', 'Dropbox'],
   ['mongodb', 'MongoDB'],
   ['elastic', 'Elastic'],
+  ['anthropic', 'Anthropic'],
+  ['databricks', 'Databricks'],
+  ['coinbase', 'Coinbase'],
+  ['robinhood', 'Robinhood'],
+  ['pinterest', 'Pinterest'],
+  ['lyft', 'Lyft'],
+  ['asana', 'Asana'],
+  ['okta', 'Okta'],
+  ['instacart', 'Instacart'],
+  ['vercel', 'Vercel'],
+  ['zscaler', 'Zscaler'],
+  ['airtable', 'Airtable'],
+  ['block', 'Block'],
+  ['carta', 'Carta'],
+  ['toast', 'Toast'],
+  ['affirm', 'Affirm'],
+  ['chime', 'Chime'],
+  ['brex', 'Brex'],
+  ['scaleai', 'Scale AI'],
 ];
 export const LEVER_BOARDS: Array<[string, string]> = [
   ['spotify', 'Spotify'],

@@ -85,12 +85,12 @@ describe('Bangladeshi sites first, a smaller share of foreign jobs', () => {
         JSON.stringify({
           data: [1, 2, 3, 4].map((n) => ({
             slug: `de-${n}`,
-            company_name: `Firma ${n}`,
+            company_name: n === 1 ? 'Stripe' : `Firma ${n}`,
             title: `Developer ${n}`,
             description: '<p>Text</p>',
             url: `https://www.arbeitnow.com/jobs/de-${n}`,
             tags: [],
-            location: 'Berlin',
+            location: n === 1 ? 'New York, United States' : 'Berlin',
             created_at: 1760000000 + n,
           })),
         }),
@@ -149,6 +149,8 @@ describe('Bangladeshi sites first, a smaller share of foreign jobs', () => {
       source: string;
     }>;
     expect(list.map((x) => x.region)).toEqual(['bd', 'bd', 'bd', 'intl', 'bd', 'bd', 'bd', 'intl']);
+    // among the foreign ones, a large company in the United States comes first even though it is the oldest
+    expect((list[3] as unknown as { title: string }).title).toBe('Developer 1');
     // page two continues the rhythm with new items (no repeats)
     const p2 = (await anon.req('GET', '/api/v1/listings?limit=8&offset=8')).json().data as Array<{
       id: string;

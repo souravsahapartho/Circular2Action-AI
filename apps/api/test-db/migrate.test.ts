@@ -24,6 +24,7 @@ describe('migration runner on TiDB (T-10 equivalent with plain SQL)', () => {
       '0005_employers',
       '0006_sponsored_push',
       '0007_listing_details',
+      '0008_listing_priority',
     ]);
     const [tables] = await t.db.query<{ n: number } & import('../src/db/pool').Row>(
       `SELECT COUNT(*) AS n FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'`,

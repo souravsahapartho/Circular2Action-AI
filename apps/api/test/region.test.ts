@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { mixRegions } from '../src/modules/listings/repo';
-import { classifyListing, regionOf } from '../src/modules/listings/sources';
+import { classifyListing, priorityOf, regionOf } from '../src/modules/listings/sources';
 
 describe('regionOf', () => {
   it('counts Google results (limited to Bangladesh), known Bangladeshi sites and Bangladeshi places as Bangladeshi', () => {
@@ -29,5 +29,16 @@ describe('mixRegions', () => {
     expect(mixRegions([], ['f1', 'f2'], 3)).toEqual(['f1', 'f2']);
     expect(mixRegions(['b1', 'b2'], [], 3)).toEqual(['b1', 'b2']);
     expect(mixRegions([], [], 3)).toEqual([]);
+  });
+});
+
+describe('priorityOf', () => {
+  it('ranks large companies and the United States, Canada and Australia highest', () => {
+    expect(priorityOf('Stripe', 'New York, United States')).toBe(5);
+    expect(priorityOf('Stripe', 'Remote')).toBe(4);
+    expect(priorityOf('Small Studio', 'Sydney, Australia')).toBe(2);
+    expect(priorityOf('Small Studio', 'Worldwide')).toBe(1);
+    expect(priorityOf('Firma GmbH', 'Berlin')).toBe(0);
+    expect(priorityOf(null, null)).toBe(0);
   });
 });

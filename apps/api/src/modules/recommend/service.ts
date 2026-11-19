@@ -64,6 +64,7 @@ export interface RecommendedWebJob {
   tags: string[];
   category_slug: string;
   region: string;
+  priority: number;
   posted_at: string | null;
   score: number;
   reasons: Reason[];
@@ -682,10 +683,11 @@ export class RecommendService {
         tags: unknown;
         category_slug: string;
         region: string;
+        priority: number;
         posted_at: Date | null;
       }
     >(
-      `SELECT id, source, title, company, location, snippet, url, tags, category_slug, region, posted_at FROM external_listings
+      `SELECT id, source, title, company, location, snippet, url, tags, category_slug, region, priority, posted_at FROM external_listings
        WHERE ${where.join(' AND ')} ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT 1500`,
       params,
     );
@@ -719,6 +721,7 @@ export class RecommendService {
           tags,
           category_slug: r.category_slug,
           region: r.region,
+          priority: Number(r.priority ?? 0),
           posted_at: r.posted_at ? r.posted_at.toISOString() : null,
           score: sc.score,
           reasons: sc.reasons,
@@ -727,7 +730,10 @@ export class RecommendService {
       .sort((x, y) => y.score - x.score || (y.posted_at ?? '').localeCompare(x.posted_at ?? ''));
     // Bangladeshi listings first (about three in four), each side still in order of fit; then spread companies out
     const bd = scored.filter((x) => x.region === 'bd');
-    const foreign = scored.filter((x) => x.region !== 'bd');
+    // foreign ones lean to the United States, Canada, Australia, open-to-all work and big companies
+    const foreign = scored
+      .filter((x) => x.region !== 'bd')
+      .sort((x, y) => y.score + y.priority * 1.5 - (x.score + x.priority * 1.5));
     return diversify(mixRegions(bd, foreign, 3));
   }
 
