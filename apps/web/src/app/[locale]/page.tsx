@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
 import { ForYou, loadRecommendations } from '@/components/for-you';
 import { OpportunityList } from '@/components/opportunity-list';
+import { SponsoredStrip } from '@/components/sponsored-strip';
 import { DeadlineChip, Icon, type IconName } from '@/components/ui';
 import { WebJobCard, type WebJob } from '@/components/web-job-card';
 import { formatNumber, isLocale } from '@/i18n/config';
@@ -238,6 +239,13 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
             ))}
           </div>
         </section>
+
+        <SponsoredStrip
+          locale={locale}
+          d={d}
+          signedIn={Boolean(me)}
+          categoryNames={categoryNames}
+        />
 
         {me ? (
           <ForYou

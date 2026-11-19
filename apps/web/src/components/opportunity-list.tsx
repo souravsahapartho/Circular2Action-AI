@@ -35,7 +35,7 @@ export function OpportunityList({
           .map((r) => reasonText(dict, r, categoryNames ?? {}))
           .filter((x): x is string => x !== null);
         return (
-          <li key={o.id} className="opp">
+          <li key={o.id} className="opp" data-cat={o.category_slug ?? undefined}>
             <div>
               <h3>
                 <Link href={`/${locale}/opportunities/${o.slug}-${o.id}`}>{o.title}</Link>

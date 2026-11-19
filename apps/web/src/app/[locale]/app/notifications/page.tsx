@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
+import { PushToggle } from '@/components/push-toggle';
 import { EmptyState, ErrorState } from '@/components/ui';
 import { isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
@@ -26,6 +27,7 @@ export default async function Notifications({ params }: { params: Promise<{ loca
             {d.notifications.settings}
           </Link>
         </div>
+        <PushToggle locale={locale} />
         {res.kind === 'ok' && res.data.length > 0 ? (
           <NotificationsList
             items={res.data}

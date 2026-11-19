@@ -48,9 +48,16 @@ const GROUPS: Array<{ title: string; items: NavItem[] }> = [
         key: 'listings',
       },
       {
+        href: '/admin/sponsored',
+        label: 'Sponsored posts',
+        icon: 'star',
+        perm: 'listing.manage',
+        key: 'sponsored',
+      },
+      {
         href: '/admin/announcements',
-        label: 'Announcements',
-        icon: 'info',
+        label: 'Notifications',
+        icon: 'bell',
         perm: 'system.operate',
         key: 'announcements',
       },

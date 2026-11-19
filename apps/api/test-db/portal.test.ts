@@ -368,7 +368,9 @@ describe('portal: site applications with tracking IDs, staff handling, jobs from
     expect((await anon.req('GET', '/api/v1/listings?source=remotive')).json().data).toHaveLength(1);
     expect((await anon.req('GET', '/api/v1/listings?source=bogus')).statusCode).toBe(422);
     const srcList = (await anon.req('GET', '/api/v1/listings/sources')).json().data;
-    expect(srcList.map((s: { id: string }) => s.id).sort()).toEqual(['arbeitnow', 'remotive']);
+    const ids = srcList.map((s: { id: string }) => s.id);
+    expect(ids).toEqual(expect.arrayContaining(['arbeitnow', 'remotive']));
+    expect(ids).not.toContain('google'); // not enabled without keys
 
     // hide one
     const nurse = pub.data.find((l: { title: string }) => l.title === 'Nurse');

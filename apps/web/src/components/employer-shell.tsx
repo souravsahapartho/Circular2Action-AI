@@ -10,6 +10,7 @@ const NAV: Array<{ href: string; label: string; icon: IconName; key: string }> =
   { href: '/employer', label: 'Dashboard', icon: 'dashboard', key: 'overview' },
   { href: '/employer/posts', label: 'My posts', icon: 'briefcase', key: 'posts' },
   { href: '/employer/applications', label: 'Applications', icon: 'file', key: 'applications' },
+  { href: '/employer/notifications', label: 'Notifications', icon: 'bell', key: 'notifications' },
   { href: '/employer/company', label: 'Company', icon: 'building', key: 'company' },
 ];
 
@@ -30,6 +31,12 @@ export async function EmployerShell({
   children: ReactNode;
 }) {
   let waiting = 0;
+  let unread = 0;
+  const bell = await apiGet<{ unread: number }>('/api/v1/me/notifications/unread-count', {
+    auth: true,
+    timeoutMs: 8000,
+  });
+  if (bell.kind === 'ok') unread = bell.data.unread;
   const res = await apiGet<unknown[]>('/api/v1/employer/applications?limit=1', {
     auth: true,
     timeoutMs: 8000,
@@ -53,6 +60,11 @@ export async function EmployerShell({
               aria-current={n.key === active ? 'page' : undefined}
             >
               <Icon name={n.icon} /> {n.label}
+              {n.key === 'notifications' && unread > 0 ? (
+                <span className="nav-badge" title="Unread">
+                  {unread}
+                </span>
+              ) : null}
               {n.key === 'applications' && waiting > 0 ? (
                 <span className="nav-badge" title="Waiting for your review">
                   {waiting}

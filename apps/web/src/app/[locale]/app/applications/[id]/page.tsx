@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
-import { SiteStatusPill, Timeline, type TimelineItem } from '@/components/site-application';
+import {
+  ProgressSteps,
+  SiteStatusPill,
+  Timeline,
+  type TimelineItem,
+} from '@/components/site-application';
 import { EmptyState, ErrorState } from '@/components/ui';
 import { formatDate, isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
@@ -66,6 +71,11 @@ export default async function MyApplication({
                 </p>
                 <code className="tracking-code">{res.data.tracking_code}</code>
               </div>
+              <ProgressSteps
+                d={d}
+                status={res.data.status}
+                reached={(res.data.timeline as TimelineItem[]).map((t) => t.to_status)}
+              />
               <h2>{d.myApps.timeline}</h2>
               <Timeline d={d} locale={locale} items={res.data.timeline as TimelineItem[]} />
             </article>

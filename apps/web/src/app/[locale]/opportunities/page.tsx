@@ -4,6 +4,7 @@ import { Page } from '@/components/chrome';
 import { ResponsiveDetails } from '@/components/responsive-details';
 import type { Reason } from '@/lib/reasons';
 import { OpportunityList } from '@/components/opportunity-list';
+import { SponsoredStrip } from '@/components/sponsored-strip';
 import { EmptyState, ErrorState, Icon, Pagination } from '@/components/ui';
 import { formatNumber, isLocale } from '@/i18n/config';
 import { getDictionary, t } from '@/i18n/dictionaries';
@@ -160,6 +161,9 @@ export default async function Explore({
         </aside>
 
         <section aria-live="polite">
+          {page === 1 && !filtered ? (
+            <SponsoredStrip locale={locale} d={d} signedIn={Boolean(me)} />
+          ) : null}
           {list.kind === 'ok' && list.data.length > 0 ? (
             <>
               <p className="muted tabular">{t(d.explore.count, { n: nf(total) })}</p>

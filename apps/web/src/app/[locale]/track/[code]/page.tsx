@@ -1,7 +1,13 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
-import { SiteStatusPill, Timeline, type TimelineItem } from '@/components/site-application';
+import { CopyButton } from '@/components/copy-button';
+import {
+  ProgressSteps,
+  SiteStatusPill,
+  Timeline,
+  type TimelineItem,
+} from '@/components/site-application';
 import { ErrorState } from '@/components/ui';
 import { formatDate, isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
@@ -45,9 +51,21 @@ export default async function TrackResult({
             <h1>{d.track.title}</h1>
             <div className="card stack">
               <div className="row-flex" style={{ justifyContent: 'space-between' }}>
-                <code className="tracking-code">{res.data.tracking_code}</code>
+                <div className="row-flex">
+                  <code className="tracking-code">{res.data.tracking_code}</code>
+                  <CopyButton
+                    value={res.data.tracking_code}
+                    label={locale === 'bn' ? 'কপি' : 'Copy'}
+                    doneLabel={locale === 'bn' ? 'কপি হয়েছে' : 'Copied'}
+                  />
+                </div>
                 <SiteStatusPill d={d} status={res.data.status} />
               </div>
+              <ProgressSteps
+                d={d}
+                status={res.data.status}
+                reached={res.data.timeline.map((t) => t.to_status)}
+              />
               <div>
                 <strong>
                   {titleFor(res.data.opportunity.title, res.data.opportunity.title_alt, locale)}

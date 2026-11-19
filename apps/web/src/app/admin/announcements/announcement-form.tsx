@@ -1,20 +1,43 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Alert } from '@/components/ui';
 import { callApi } from '@/lib/client-api';
 
+type Audience = 'all' | 'seekers' | 'employers' | 'category' | 'user';
+
+const AUDIENCES: Array<{ value: Audience; label: string; hint: string }> = [
+  { value: 'seekers', label: 'Job seekers', hint: 'Everyone who signed up to find opportunities.' },
+  {
+    value: 'employers',
+    label: 'Employers (recruiters)',
+    hint: 'Everyone with an employer account.',
+  },
+  { value: 'all', label: 'Everyone', hint: 'Job seekers and employers.' },
+  {
+    value: 'category',
+    label: 'People interested in one kind of opportunity',
+    hint: 'They chose it, or looked at it in the last 90 days.',
+  },
+  { value: 'user', label: 'One person (by email)', hint: 'A private message to a single account.' },
+];
+
+/** The notification board: write one message and choose who receives it. */
 export function AnnouncementForm({
   categories,
 }: {
   categories: Array<{ slug: string; name: string }>;
 }) {
+  const router = useRouter();
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
-  const [audience, setAudience] = useState<'all' | 'category'>('all');
+  const [audience, setAudience] = useState<Audience>('seekers');
   const [category, setCategory] = useState(categories[0]?.slug ?? '');
+  const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const current = AUDIENCES.find((a) => a.value === audience)!;
 
   return (
     <form
@@ -22,9 +45,11 @@ export function AnnouncementForm({
       onSubmit={async (e) => {
         e.preventDefault();
         const who =
-          audience === 'all'
-            ? 'everyone'
-            : `people interested in ${categories.find((c) => c.slug === category)?.name ?? category}`;
+          audience === 'category'
+            ? `people interested in ${categories.find((c) => c.slug === category)?.name ?? category}`
+            : audience === 'user'
+              ? email.trim()
+              : current.label.toLowerCase();
         if (!window.confirm(`Send this to ${who}? This cannot be undone.`)) return;
         setBusy(true);
         setMsg(null);
@@ -36,16 +61,21 @@ export function AnnouncementForm({
             message: message.trim(),
             audience,
             ...(audience === 'category' ? { category_slug: category } : {}),
+            ...(audience === 'user' ? { email: email.trim() } : {}),
           },
         );
         setBusy(false);
         if (out.ok && out.data) {
           setMsg({
             ok: true,
-            text: `Sent to ${out.data.told} ${out.data.told === 1 ? 'person' : 'people'}.`,
+            text:
+              out.data.told === 0
+                ? 'Nobody matched this audience, so nothing was sent.'
+                : `Sent to ${out.data.told} ${out.data.told === 1 ? 'person' : 'people'}. Phones with push on are notified within seconds.`,
           });
           setTitle('');
           setMessage('');
+          router.refresh();
         } else {
           setMsg({
             ok: false,
@@ -55,6 +85,53 @@ export function AnnouncementForm({
       }}
     >
       {msg ? <Alert kind={msg.ok ? 'success' : 'error'}>{msg.text}</Alert> : null}
+      <div className="field">
+        <label htmlFor="an-aud">Send to</label>
+        <select
+          id="an-aud"
+          className="input"
+          value={audience}
+          onChange={(e) => setAudience(e.target.value as Audience)}
+        >
+          {AUDIENCES.map((a) => (
+            <option key={a.value} value={a.value}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+        <span className="muted small">{current.hint}</span>
+      </div>
+      {audience === 'category' ? (
+        <div className="field">
+          <label htmlFor="an-cat">Kind</label>
+          <select
+            id="an-cat"
+            className="input"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            {categories.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      {audience === 'user' ? (
+        <div className="field">
+          <label htmlFor="an-email">Email address</label>
+          <input
+            id="an-email"
+            className="input"
+            type="email"
+            required
+            autoComplete="off"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+      ) : null}
       <div className="field">
         <label htmlFor="an-title">Title</label>
         <input
@@ -81,37 +158,8 @@ export function AnnouncementForm({
         />
         <span className="muted small">{message.length}/500</span>
       </div>
-      <div className="field">
-        <label htmlFor="an-aud">Send to</label>
-        <select
-          id="an-aud"
-          className="input"
-          value={audience}
-          onChange={(e) => setAudience(e.target.value as 'all' | 'category')}
-        >
-          <option value="all">Everyone</option>
-          <option value="category">People interested in one kind of opportunity</option>
-        </select>
-      </div>
-      {audience === 'category' ? (
-        <div className="field">
-          <label htmlFor="an-cat">Kind</label>
-          <select
-            id="an-cat"
-            className="input"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            {categories.map((c) => (
-              <option key={c.slug} value={c.slug}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ) : null}
       <button className="btn" type="submit" disabled={busy}>
-        {busy ? 'Sending…' : 'Send announcement'}
+        {busy ? 'Sending…' : 'Send notification'}
       </button>
     </form>
   );

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/chrome';
+import { PushToggle } from '@/components/push-toggle';
 import { isLocale } from '@/i18n/config';
 import { getDictionary } from '@/i18n/dictionaries';
 import { apiGet } from '@/lib/api';
@@ -29,6 +30,7 @@ export default async function Settings({ params }: { params: Promise<{ locale: s
   return (
     <Page locale={locale} dict={d} section="settings" path="/app/settings" me={me}>
       <h1>{d.app.settingsTitle}</h1>
+      {pending ? null : <PushToggle locale={locale} />}
       <SettingsPanel
         locale={locale}
         me={{ name: me.display_name, email: me.email, locale: me.locale, pendingDeletion: pending }}

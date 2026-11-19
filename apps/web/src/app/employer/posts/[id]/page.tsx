@@ -4,6 +4,7 @@ import { EmployerShell } from '@/components/employer-shell';
 import { apiGet, type CategoryInfo, type LocationInfo } from '@/lib/api';
 import { requireEmployer } from '@/lib/session';
 import { OpportunityForm, type AdminOpp } from '../../../admin/opportunities/opportunity-form';
+import { SponsorPanel, type Sponsorship } from './sponsor-panel';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Edit post' };
@@ -12,11 +13,14 @@ export default async function EditPost({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   if (!/^\d{1,20}$/.test(id)) notFound();
   const me = await requireEmployer();
-  const [opp, cats, locs, prof] = await Promise.all([
+  const [opp, cats, locs, prof, spons] = await Promise.all([
     apiGet<AdminOpp>(`/api/v1/employer/opportunities/${id}`, { auth: true }),
     apiGet<CategoryInfo[]>('/api/v1/categories?locale=en'),
     apiGet<LocationInfo[]>('/api/v1/locations?locale=en'),
     apiGet<{ company_name: string }>('/api/v1/employer/profile', { auth: true }),
+    apiGet<Array<Sponsorship & { opportunity_id: string }>>('/api/v1/employer/sponsorships', {
+      auth: true,
+    }),
   ]);
   if (opp.kind === 'not_found') notFound();
   const locked =
@@ -46,6 +50,12 @@ export default async function EditPost({ params }: { params: Promise<{ id: strin
             organizations={[]}
             canPublish={false}
           />
+          {opp.data.publication_status === 'published' ? (
+            <SponsorPanel
+              opportunityId={id}
+              items={spons.kind === 'ok' ? spons.data.filter((x) => x.opportunity_id === id) : []}
+            />
+          ) : null}
         </>
       ) : (
         <Alert kind="error">Could not load this post. Reload in a moment.</Alert>

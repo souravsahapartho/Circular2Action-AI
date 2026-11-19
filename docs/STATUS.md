@@ -68,7 +68,20 @@ Plan: addendum in `docs/PLAN_v1.2_PORTAL.md`. Migration `0004_interests.sql` (80
 - Owner admin: `admin123` is below the app's own rule (12 characters, plus MFA for staff), so no such account is created. Use `create-admin` with a strong password from `.env.local`.
 - Not done: staff UI to mark a company verified; employer email notifications (no provider).
 
-Totals at last run: unit tests api 187, eligibility 73, web 10, others 47; TiDB suite 71 tests; `tsc` clean; ESLint clean.
+## Plan v1.5: more job sources, sponsored posts, push, notification board, security (2026-11-19)
+
+- **Web jobs from many companies**: besides Arbeitnow and Remotive, the feed now reads Jobicy, Remote OK, Himalayas and the public career pages of 14 companies (Greenhouse and Lever job boards). The list of hosts is fixed in code (no user-supplied URLs). The list is ordered by how well each job fits the person, then spread out so one company or one source cannot fill a screen.
+- **Not done on purpose: training models on third-party datasets.** Ranking stays a transparent weighted score (ADR 2026-11-14); copying other sites' data to train a model would raise licensing and privacy problems and gives worse, unexplainable results at this size. Revisit with real usage data.
+- **Sponsored posts (demo plan)**: an employer asks to promote a live post (3, 7 or 14 days), staff approve or decline, an active one is shown, always labelled "Sponsored", on the home page and Explore to the people it fits best (rotating among the best few). Views and clicks are counted. **No payment is taken**: a real payment provider needs the owner's approval first.
+- **Push notifications**: a person or employer turns push on per device (`/en/app/settings`, the notifications page, employer notifications) and chooses which kinds they want. Unread notifications are sent as web push (VAPID) within about 20 seconds, once each, in the person's language. Subscriptions are only accepted from real push services (SSRF guard), removed when a device is gone, and deleted with the account. Works on Android and desktop browsers; iPhone needs the site added to the Home Screen (Safari 16.4+).
+- **Notification board** (`/admin/announcements`, now "Notifications"): staff send a message to job seekers, employers, everyone, people interested in one kind, or one person by email; history with audience and reach. Employers have their own notifications page with an unread badge.
+- **Staff sign-in link removed** from the public footer (staff use `/admin` directly).
+- **Security**: Content-Security-Policy, Permissions-Policy, COOP and (when hosted) HSTS on the web app; the service worker does no caching. Known: `pnpm audit` reports a high advisory in zod < 4.6.6 (memory use on oversized constrained collections). We use zod 3, request bodies are capped at 1 MB and every array has a maximum, so exposure is limited; the move to zod 4 is a separate, larger change.
+- **Found while testing**: `/sw.js` was being redirected to a language prefix by the middleware (push would never have registered); sign-in and register crashed for signed-in people; checkboxes were too small for fingers.
+- Tests: new `diversify` and source-parser unit tests, 5 TiDB tests for sponsored posts, push and the board. A layout audit script (`scripts/layout-audit.js`) checked overflow and tap targets on 360, 768 and 1440 px wide screens.
+- Not done: email provider, real payments, scheduler for background alerts while the free instance sleeps (alerts and push go out while it is awake), Google search connector (needs keys).
+
+Totals at last run: unit tests api 194, eligibility 73, web 10, others 47; TiDB suite 93 tests; `tsc` clean; ESLint clean.
 
 ## NOT done (and why)
 

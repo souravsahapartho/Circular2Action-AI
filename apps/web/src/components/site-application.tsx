@@ -60,3 +60,53 @@ export function Timeline({
     </ol>
   );
 }
+
+const STEPS: SiteStatus[] = ['submitted', 'under_review', 'shortlisted', 'interview', 'accepted'];
+
+/**
+ * A horizontal progress bar of the main path (submitted to accepted). A rejected or withdrawn application shows the
+ * steps it reached, then an end marker. Phones show it as a vertical list so nothing needs to scroll sideways.
+ */
+export function ProgressSteps({
+  d,
+  status,
+  reached,
+}: {
+  d: Dictionary;
+  status: string;
+  /** every status the application has had, from the timeline */
+  reached: string[];
+}) {
+  const ended = status === 'rejected' || status === 'withdrawn';
+  const seen = new Set(reached);
+  const lastIdx = Math.max(-1, ...STEPS.map((s, i) => (seen.has(s) ? i : -1)));
+  const currentIdx = ended ? lastIdx : STEPS.indexOf(status as SiteStatus);
+  return (
+    <ol className="steps" aria-label={statusLabel(d, status)}>
+      {STEPS.map((s, i) => {
+        const state =
+          i < currentIdx ? 'done' : i === currentIdx ? (ended ? 'done' : 'now') : 'todo';
+        return (
+          <li
+            key={s}
+            className={`step ${state}`}
+            aria-current={state === 'now' ? 'step' : undefined}
+          >
+            <span className="step-dot" aria-hidden="true">
+              {state === 'done' ? '✓' : i + 1}
+            </span>
+            <span className="step-label">{statusLabel(d, s)}</span>
+          </li>
+        );
+      })}
+      {ended ? (
+        <li className={`step end ${status}`}>
+          <span className="step-dot" aria-hidden="true">
+            ✕
+          </span>
+          <span className="step-label">{statusLabel(d, status)}</span>
+        </li>
+      ) : null}
+    </ol>
+  );
+}
